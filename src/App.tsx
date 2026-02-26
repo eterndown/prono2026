@@ -1,18 +1,18 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Partido, LetraGrupo, Clasificacion, Usuario, Pronostico, InfoEstadio, GlobalSettings, TimeConfig, Fase } from '../src/types';
-import { GRUPOS, EQUIPOS, PARTIDOS_INICIALES, ESTADIOS, DEADLINE_GROUPS, DEADLINE_KNOCKOUT, getFlagUrl } from '../src/constants';
-import { calcularPosiciones, obtenerMejoresTerceros, resolverLlaves, isValidScore, simularPenales } from '../../services/fifaLogic';
-import { api } from '../../services/api';
-import { MatchCard } from '../../components/MatchCard';
-import DetailedStandingsView from '../../components/DetailedStandingsView';
-import ScoresFixturesView from '../../components/ScoresFixturesView';
-import KnockoutFullBracket from '../../components/KnockoutFullBracket';
-import AdminPanel from '../../components/AdminPanel';
-import ErrorBoundary from '../../components/ErrorBoundary';
-import TournamentManual from '../../components/TournamentManual';
-import StandingsSidebar from '../../components/StandingsSidebar';
-import StadiumMapModal from '../../components/StadiumMapModal';
-import CountdownTimer from '../../components/CountdownTimer';
+import { Partido, LetraGrupo, Clasificacion, Usuario, Pronostico, InfoEstadio, GlobalSettings, TimeConfig, Fase } from './types';
+import { GRUPOS, EQUIPOS, PARTIDOS_INICIALES, ESTADIOS, DEADLINE_GROUPS, DEADLINE_KNOCKOUT, getFlagUrl } from './constants';
+import { calcularPosiciones, obtenerMejoresTerceros, resolverLlaves, isValidScore, simularPenales } from './services/fifaLogic';
+import { api } from './services/api';
+import { MatchCard } from './components/MatchCard';
+import DetailedStandingsView from './components/DetailedStandingsView';
+import ScoresFixturesView from './components/ScoresFixturesView';
+import KnockoutFullBracket from './components/KnockoutFullBracket';
+import AdminPanel from './components/AdminPanel';
+import ErrorBoundary from './components/ErrorBoundary';
+import TournamentManual from './components/TournamentManual';
+import StandingsSidebar from './components/StandingsSidebar';
+import StadiumMapModal from './components/StadiumMapModal';
+import CountdownTimer from './components/CountdownTimer';
 import { 
   Trophy, LayoutGrid, Layers, BarChart3, Clock, ShieldCheck, Loader2, 
   Eye, EyeOff, GitFork, Wand2, Eraser, ShieldAlert, BookOpen, Printer, 
