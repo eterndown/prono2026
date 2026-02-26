@@ -13,7 +13,14 @@ import TournamentManual from '../../components/TournamentManual';
 import StandingsSidebar from '../../components/StandingsSidebar';
 import StadiumMapModal from '../../components/StadiumMapModal';
 import CountdownTimer from '../../components/CountdownTimer';
-import { Trophy, LayoutGrid, Layers, BarChart3, Clock, ShieldCheck, Loader2, Eye, EyeOff, GitFork, Wand2, Eraser, ShieldAlert, BookOpen, Printer, Menu, AlertCircle, Zap, Filter, Radio, ChevronRight, Flag } from 'lucide-react';type VistaActiva = 'vivo' | 'calendario' | 'grupos' | 'clasificacion' | 'eliminatorias' | 'llaves' | 'admin';
+import { 
+  Trophy, LayoutGrid, Layers, BarChart3, Clock, ShieldCheck, Loader2, 
+  Eye, EyeOff, GitFork, Wand2, Eraser, ShieldAlert, BookOpen, Printer, 
+  Menu, AlertCircle, Zap, Filter, Radio, ChevronRight, Flag, Calendar, 
+  LogOut, Save, CheckCircle2 
+} from 'lucide-react';
+
+type VistaActiva = 'vivo' | 'calendario' | 'grupos' | 'clasificacion' | 'eliminatorias' | 'llaves' | 'admin';
 type SubVistaVivo = 'grupos_vivo' | 'ranking3_vivo' | 'clasificacion_vivo' | 'eliminatorias_vivo' | 'llaves_vivo';
 
 const App: React.FC = () => {
@@ -167,7 +174,7 @@ const App: React.FC = () => {
     return res;
   }, []);
 
-// --- RESOLUCIÓN DE LLAVES (Sincronizado con Lógica Pro) ---
+  // --- RESOLUCIÓN DE LLAVES (Sincronizado con Lógica Pro) ---
   const llaves = useMemo(() => {
     const startKnockout = new Date("2026-06-25T00:00:00-03:00");
     const isDateInWindow = appTime >= startKnockout;
