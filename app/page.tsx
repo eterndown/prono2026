@@ -1,7 +1,7 @@
 'use client'
 
-import App from '@/src/App'
+import TournamentDashboard from '@/src/components/TournamentDashboard'
 
 export default function Home() {
-  return <App />
+  return <TournamentDashboard />
 }
