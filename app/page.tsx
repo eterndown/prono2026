@@ -1,7 +1,14 @@
 'use client'
 
-import TournamentDashboard from '@/src/components/TournamentDashboard'
+import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function Home() {
-  return <TournamentDashboard />
+  const router = useRouter()
+
+  useEffect(() => {
+    router.push('/preview')
+  }, [router])
+
+  return null
 }
