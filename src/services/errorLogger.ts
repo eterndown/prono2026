@@ -1,5 +1,4 @@
-
-export type LogLevel = 'info' | 'warn' | 'error';
+export type LogLevel = "info" | "warn" | "error";
 
 export interface LogEntry {
   timestamp: string;
@@ -18,36 +17,39 @@ class ErrorLogger {
   }
 
   private loadFromStorage() {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     try {
-      const saved = localStorage.getItem('fifa_system_logs');
+      const saved = localStorage.getItem("fifa_system_logs");
       if (saved) {
         this.logs = JSON.parse(saved);
       }
     } catch (e) {
-      console.error('Failed to load logs from storage', e);
+      console.error("Failed to load logs from storage", e);
     }
   }
 
   private saveToStorage() {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
     try {
-      localStorage.setItem('fifa_system_logs', JSON.stringify(this.logs.slice(-20)));
+      localStorage.setItem(
+        "fifa_system_logs",
+        JSON.stringify(this.logs.slice(-20))
+      );
     } catch (e) {
-      console.error('Failed to save logs to storage', e);
+      console.error("Failed to save logs to storage", e);
     }
   }
 
-  public log(message: string, level: LogLevel = 'info', context?: any) {
+  public log(message: string, level: LogLevel = "info", context?: any) {
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
       message,
-      context
+      context,
     };
 
-    console[level](`[${level.toUpperCase()}] ${message}`, context || '');
-    
+    console[level](`[${level.toUpperCase()}] ${message}`, context || "");
+
     this.logs.push(entry);
     if (this.logs.length > this.MAX_LOGS) {
       this.logs.shift();
@@ -61,12 +63,12 @@ class ErrorLogger {
     this.subscribers.push(callback);
     callback(this.logs);
     return () => {
-      this.subscribers = this.subscribers.filter(s => s !== callback);
+      this.subscribers = this.subscribers.filter((s) => s !== callback);
     };
   }
 
   private notify() {
-    this.subscribers.forEach(s => s([...this.logs]));
+    this.subscribers.forEach((s) => s([...this.logs]));
   }
 
   public getLogs() {
@@ -75,8 +77,8 @@ class ErrorLogger {
 
   public clear() {
     this.logs = [];
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('fifa_system_logs');
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("fifa_system_logs");
     }
     this.notify();
   }

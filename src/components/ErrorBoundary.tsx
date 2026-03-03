@@ -1,7 +1,6 @@
-
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { logger } from '../services/errorLogger';
-import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
+import React, { Component, ErrorInfo, ReactNode } from "react";
+import { logger } from "../services/errorLogger";
+import { AlertTriangle, RefreshCw, Home } from "lucide-react";
 
 interface Props {
   /**
@@ -24,7 +23,7 @@ class ErrorBoundary extends Component<Props, State> {
   public props: Props;
   public state: State = {
     hasError: false,
-    error: null
+    error: null,
   };
 
   constructor(props: Props) {
@@ -40,15 +39,15 @@ class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log the error to our custom logger service.
-    logger.log(`Render Error: ${error.message}`, 'error', {
+    logger.log(`Render Error: ${error.message}`, "error", {
       stack: error.stack,
-      componentStack: errorInfo.componentStack
+      componentStack: errorInfo.componentStack,
     });
   }
 
   private handleReset = () => {
     // Clear local data and redirect to a clean URL to recover from potential state-related crashes.
-    localStorage.removeItem('fifa_predictions');
+    localStorage.removeItem("fifa_predictions");
     window.location.href = window.location.pathname;
   };
 
@@ -61,11 +60,14 @@ class ErrorBoundary extends Component<Props, State> {
             <div className="w-20 h-20 bg-rose-500/10 rounded-full flex items-center justify-center mx-auto border border-rose-500/20">
               <AlertTriangle className="w-10 h-10 text-rose-500" />
             </div>
-            
+
             <div className="space-y-2">
-              <h1 className="text-2xl font-black uppercase italic tracking-tighter text-white">¡Algo salió mal!</h1>
+              <h1 className="text-2xl font-black uppercase italic tracking-tighter text-white">
+                ¡Algo salió mal!
+              </h1>
               <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest leading-relaxed">
-                Se ha detectado un error crítico en el pronóstico. Los detalles han sido registrados para su análisis.
+                Se ha detectado un error crítico en el pronóstico. Los detalles
+                han sido registrados para su análisis.
               </p>
             </div>
 
@@ -76,13 +78,13 @@ class ErrorBoundary extends Component<Props, State> {
             </div>
 
             <div className="flex flex-col gap-3">
-              <button 
+              <button
                 onClick={() => window.location.reload()}
                 className="w-full bg-emerald-500 p-4 rounded-2xl font-black uppercase tracking-widest hover:bg-emerald-400 transition-all text-xs flex items-center justify-center gap-2"
               >
                 <RefreshCw className="w-4 h-4" /> Reintentar Carga
               </button>
-              <button 
+              <button
                 onClick={this.handleReset}
                 className="w-full bg-zinc-800 p-4 rounded-2xl font-black uppercase tracking-widest hover:bg-zinc-700 transition-all text-xs text-zinc-400 flex items-center justify-center gap-2 border border-zinc-700"
               >

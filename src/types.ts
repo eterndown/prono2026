@@ -1,7 +1,25 @@
+export type LetraGrupo =
+  | "A"
+  | "B"
+  | "C"
+  | "D"
+  | "E"
+  | "F"
+  | "G"
+  | "H"
+  | "I"
+  | "J"
+  | "K"
+  | "L";
 
-export type LetraGrupo = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L';
-
-export type Fase = 'Grupos' | 'Dieciseisavos' | 'Octavos' | 'Cuartos' | 'Semis' | 'TercerPuesto' | 'Final';
+export type Fase =
+  | "Grupos"
+  | "Dieciseisavos"
+  | "Octavos"
+  | "Cuartos"
+  | "Semis"
+  | "TercerPuesto"
+  | "Final";
 
 // Match is an alias for Partido used in UI components
 export type Match = Partido;
@@ -45,7 +63,7 @@ export interface Clasificacion {
   dg: number;
   puntos: number;
   letraGrupo?: LetraGrupo;
-  forma: ('G' | 'E' | 'P' | '-')[];
+  forma: ("G" | "E" | "P" | "-")[];
 }
 
 export interface Usuario {
@@ -88,12 +106,12 @@ export interface InfoEstadio {
   lat: number;
   lng: number;
   url: string;
-  pais: 'Mexico' | 'Canada' | 'USA';
+  pais: "Mexico" | "Canada" | "USA";
   capacidad: number;
 }
 
 export interface TimeConfig {
-  modoTiempo: 'PRESENTE' | 'SIMULACION';
+  modoTiempo: "PRESENTE" | "SIMULACION";
   fechaSimulacion: string | null;
 }
 
@@ -107,7 +125,7 @@ export interface GlobalSettings {
 
 // Enum for generic match card compatibility if needed
 export enum SportType {
-  SOCCER = 'SOCCER',
-  BASKETBALL = 'BASKETBALL',
-  TENNIS = 'TENNIS'
+  SOCCER = "SOCCER",
+  BASKETBALL = "BASKETBALL",
+  TENNIS = "TENNIS",
 }

@@ -1,6 +1,5 @@
-
-import React, { useState, useEffect } from 'react';
-import { Clock, Lock, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { Clock, Lock, ShieldAlert } from "lucide-react";
 
 interface CountdownTimerProps {
   currentTime: Date;
@@ -9,13 +8,18 @@ interface CountdownTimerProps {
   isManuallyOverridden?: boolean;
 }
 
-const CountdownTimer: React.FC<CountdownTimerProps> = ({ 
+const CountdownTimer: React.FC<CountdownTimerProps> = ({
   currentTime,
-  targetDate, 
-  label, 
-  isManuallyOverridden
+  targetDate,
+  label,
+  isManuallyOverridden,
 }) => {
-  const [timeLeft, setTimeLeft] = useState<{ d: number, h: number, m: number, s: number } | null>(null);
+  const [timeLeft, setTimeLeft] = useState<{
+    d: number;
+    h: number;
+    m: number;
+    s: number;
+  } | null>(null);
   const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
@@ -75,15 +79,21 @@ const CountdownTimer: React.FC<CountdownTimerProps> = ({
   }
 
   return (
-    <div className={`flex items-center gap-4 px-5 py-3 ${bgClass} border ${borderClass} rounded-2xl shadow-xl transition-all duration-500`}>
+    <div
+      className={`flex items-center gap-4 px-5 py-3 ${bgClass} border ${borderClass} rounded-2xl shadow-xl transition-all duration-500`}
+    >
       <Clock className={`w-4 h-4 ${colorClass} animate-pulse`} />
       <div className="flex flex-col">
         <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest leading-none mb-1">
           {label} cierra en:
         </span>
-        <div className={`text-xs font-black uppercase tracking-tighter ${colorClass} tabular-nums`}>
+        <div
+          className={`text-xs font-black uppercase tracking-tighter ${colorClass} tabular-nums`}
+        >
           {timeLeft.d > 0 && `${timeLeft.d}d `}
-          {String(timeLeft.h).padStart(2, '0')}h : {String(timeLeft.m).padStart(2, '0')}m : {String(timeLeft.s).padStart(2, '0')}s
+          {String(timeLeft.h).padStart(2, "0")}h :{" "}
+          {String(timeLeft.m).padStart(2, "0")}m :{" "}
+          {String(timeLeft.s).padStart(2, "0")}s
         </div>
       </div>
     </div>

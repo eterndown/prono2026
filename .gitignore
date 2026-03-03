@@ -1,6 +1,5 @@
 # Dependencies
 node_modules/
-.pnpm-store/
 
 # Next.js
 .next/
@@ -11,7 +10,7 @@ build/
 # CodeSandbox
 .codesandbox/
 
-# Environment variables
+# Environment
 .env
 .env.local
 .env.*.local
@@ -20,10 +19,6 @@ build/
 *.log
 npm-debug.log*
 pnpm-debug.log*
-
-# IDE
-.vscode/
-.idea/
 
 # OS
 .DS_Store
