@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',  // <-- ESTO ES CRUCIAL para Cloudflare Pages
+  output: "export", // <-- ESTO ES CRUCIAL para Cloudflare Pages
   images: {
     unoptimized: true,
   },
@@ -8,6 +8,7 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  optimizeFonts: false,
 };
 
 export default nextConfig;
