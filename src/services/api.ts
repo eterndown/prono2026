@@ -83,6 +83,21 @@ export const api = {
 
   adminGetLogs: (username: string) =>
     callGAS({ action: "admin_get_logs", username }),
+  // === AGREGAR ESTO DENTRO DEL OBJETO api EXISTENTE ===
+
+  // Obtener puntaje de un usuario
+  getUserScore: (userId: string) => callGAS({ action: "getUserScore", userId }),
+
+  // Obtener ranking global
+  getLeaderboard: () => callGAS({ action: "getLeaderboard" }),
+
+  // Descargar progreso en CSV
+  downloadUserProgress: (userId: string) =>
+    callGAS({ action: "downloadUserProgress", userId }),
+
+  // Trigger para recalcular puntajes
+  recalculateScores: (adminUsername: string, matchIds?: number[]) =>
+    callGAS({ action: "recalculateScores", adminUsername, matchIds }),
 
   // Ajustado para coincidir con el documento técnico del backend
   adminUpdateTimeConfig: (

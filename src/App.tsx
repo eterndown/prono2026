@@ -1,4 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
+import Leaderboard from "./components/Leaderboard";
+import ScoreBreakdown from "./components/ScoreBreakdown";
+import { calcularPuntajeTotal } from "./services/scoringSystem";
+import { UserScore } from "./types";
 import {
   Partido,
   LetraGrupo,
@@ -73,7 +77,9 @@ type VistaActiva =
   | "clasificacion"
   | "eliminatorias"
   | "llaves"
+  | "ranking"
   | "admin";
+
 type SubVistaVivo =
   | "grupos_vivo"
   | "ranking3_vivo"
@@ -140,15 +146,13 @@ const App: React.FC = () => {
   const [pronosticos, setPronosticos] = useState<Record<number, Pronostico>>(
     generateEmptyPronos()
   );
-  const [realScores, setRealScores] = useState<Record<number, Pronostico>>({}); // Resultados Oficiales del Admin
-
+  const [realScores, setRealScores] = useState<Record<number, Pronostico>>({});
   const [globalSettings, setGlobalSettings] = useState<GlobalSettings>({
     groupsPhaseLocked: false,
     knockoutPhaseLocked: false,
     manualLockedMatchIds: [],
     manualUnlockedMatchIds: [],
   });
-
   const [showKnockoutTeams, setShowKnockoutTeams] = useState(false);
   const todasFasesEliminatorias: Fase[] = [
     "Dieciseisavos",
@@ -164,6 +168,13 @@ const App: React.FC = () => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // === ESTADOS PARA SISTEMA DE PUNTUACIÓN ===
+  const [userScores, setUserScores] = useState<UserScore[]>([]);
+  const [showScoreBreakdown, setShowScoreBreakdown] = useState(false);
+  const [selectedUserForBreakdown, setSelectedUserForBreakdown] = useState<
+    string | null
+  >(null);
+
   const toast = useCallback(
     (message: string, type: "success" | "error" = "success") => {
       setShowToast({ message, type });
@@ -176,6 +187,7 @@ const App: React.FC = () => {
     () => user?.isAdmin === true || String(user?.isAdmin) === "true",
     [user]
   );
+
   const isFrozen = useMemo(
     () => user?.isFrozen === true || String(user?.isFrozen) === "true",
     [user]
@@ -187,7 +199,6 @@ const App: React.FC = () => {
       if (globalSettings.manualLockedMatchIds.includes(match.id)) return true;
       if (globalSettings.manualUnlockedMatchIds.includes(match.id))
         return false;
-
       const deadlineGroups = new Date(DEADLINE_GROUPS);
       const deadlineKnockout = new Date(DEADLINE_KNOCKOUT);
       const startKnockout = new Date("2026-06-25T00:00:00-03:00");
@@ -197,10 +208,9 @@ const App: React.FC = () => {
         return appTime >= deadlineGroups;
       }
 
-      // Fases de Eliminatorias
       if (globalSettings.knockoutPhaseLocked) return true;
-      if (appTime < startKnockout) return true; // Bloqueo antes del 25/06
-      if (appTime >= deadlineKnockout) return true; // Bloqueo después del 28/06 15h
+      if (appTime < startKnockout) return true;
+      if (appTime >= deadlineKnockout) return true;
 
       return false;
     },
@@ -285,45 +295,26 @@ const App: React.FC = () => {
     [tablaOficial]
   );
 
-  const emptyTablaGeneral = useMemo(() => {
-    const res: Record<LetraGrupo, Clasificacion[]> = {} as any;
-    GRUPOS.forEach((g) => {
-      res[g] = calcularPosiciones(
-        g,
-        [],
-        EQUIPOS.filter((e) => e.grupo === g).map((e) => e.id)
-      );
-    });
-    return res;
-  }, []);
-
-  // --- RESOLUCIÓN DE LLAVES (Sincronizado con Lógica Pro) ---
+  // --- RESOLUCIÓN DE LLAVES ---
   const llaves = useMemo(() => {
     const startKnockout = new Date("2026-06-25T00:00:00-03:00");
     const isDateInWindow = appTime >= startKnockout;
-
-    // Si la fecha llegó o el usuario habilitó ver equipos, permitimos resolver
     const canResolveTeams =
       (showKnockoutTeams || isDateInWindow) &&
       !globalSettings.knockoutPhaseLocked;
-
-    // Verificamos si el Admin ya cargó algún resultado real para activar la prioridad
     const hasOfficialData = Object.values(realScores).some((s: Pronostico) =>
       isValidScore(s.local)
     );
-
-    // Pasamos los datos del Admin como "respaldo real"
     const datosAdmin = {
       posiciones: tablaOficial,
       terceros: mejoresTercerosOficiales,
     };
-
     return resolverLlaves(
       canResolveTeams ? tablaGeneral : ({} as any),
       canResolveTeams ? mejoresTerceros : [],
       pronosticos,
       datosAdmin,
-      hasOfficialData // Switch de prioridad automática
+      hasOfficialData
     );
   }, [
     showKnockoutTeams,
@@ -336,6 +327,24 @@ const App: React.FC = () => {
     globalSettings.knockoutPhaseLocked,
     realScores,
   ]);
+
+  // Calcular puntajes de todos los usuarios (se ejecuta cuando hay resultados reales)
+  const calcularScores = useCallback(() => {
+    if (!user) return;
+    const todosLosPartidos = [...PARTIDOS_INICIALES, ...llaves];
+    const score = calcularPuntajeTotal(
+      todosLosPartidos,
+      pronosticos,
+      realScores
+    );
+    score.userId = user.id;
+    score.username = user.username;
+    setUserScores([score]);
+  }, [user, pronosticos, realScores, llaves]);
+
+  useEffect(() => {
+    calcularScores();
+  }, [calcularScores]);
 
   // LLAVES PARA LA VISTA VIVO (Fija en datos 100% reales)
   const llavesOficiales = useMemo(() => {
@@ -353,16 +362,13 @@ const App: React.FC = () => {
       if (isFrozen) return;
       const allMatches = [...PARTIDOS_INICIALES, ...llaves];
       const match = allMatches.find((m) => m.id === id);
-
       if (match && isMatchLocked(match)) {
         toast("Fase bloqueada por fecha o configuración", "error");
         return;
       }
-
       if (id > 72) {
         setShowKnockoutTeams(true);
       }
-
       setPronosticos((prev) => ({
         ...prev,
         [id]: {
@@ -409,21 +415,17 @@ const App: React.FC = () => {
   const handleRandomKnockout = () => {
     const startKnockout = new Date("2026-06-25T00:00:00-03:00");
     const deadlineKnockout = new Date(DEADLINE_KNOCKOUT);
-
     if (appTime < startKnockout) {
       toast("Bloqueado: Dieciseisavos abren el 25/06", "error");
       return;
     }
-
     if (globalSettings.knockoutPhaseLocked || appTime >= deadlineKnockout) {
       toast("Fase de Eliminatorias cerrada", "error");
       return;
     }
-
     setShowKnockoutTeams(true);
     const newPronos = { ...pronosticos };
     let c = 0;
-
     llaves.forEach((m) => {
       if (!isMatchLocked(m) && m.equipoLocal && m.equipoVisitante) {
         const gl = Math.floor(Math.random() * 4);
@@ -445,7 +447,6 @@ const App: React.FC = () => {
         c++;
       }
     });
-
     if (c === 0) {
       toast(
         "No hay equipos definidos para simular (Esperando carga del Admin)",
@@ -589,7 +590,6 @@ const App: React.FC = () => {
     setIsLoading(true);
     const formData = new FormData(e.currentTarget);
     const data = Object.fromEntries(formData.entries());
-
     if (isRegistering) {
       const res = await api.register({
         nombre: data.nombre as string,
@@ -724,7 +724,6 @@ const App: React.FC = () => {
             <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
           </div>
         )}
-
         <header className="sticky top-0 z-[60] bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-900 h-[64px] flex items-center px-6 no-print">
           <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
@@ -741,6 +740,7 @@ const App: React.FC = () => {
                 "clasificacion",
                 "eliminatorias",
                 "llaves",
+                "ranking",
                 "admin",
               ]
                 .filter((id) => id !== "admin" || isAdmin)
@@ -761,6 +761,7 @@ const App: React.FC = () => {
                         }`}
                       />
                     )}
+                    {id === "ranking" && <Trophy className="w-3 h-3" />}
                     {id}
                   </button>
                 ))}
@@ -850,7 +851,6 @@ const App: React.FC = () => {
                       <Eraser className="w-3.5 h-3.5" />
                     </button>
                   </div>
-
                   <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden p-1 gap-1">
                     <button
                       onClick={handleRandomKnockout}
@@ -917,7 +917,6 @@ const App: React.FC = () => {
                       Resultados Oficiales Sincronizados en Tiempo Real
                     </p>
                   </div>
-
                   <div className="flex flex-wrap gap-2 no-print bg-zinc-900/50 p-1.5 rounded-2xl border border-zinc-800 self-start">
                     {[
                       {
@@ -959,7 +958,6 @@ const App: React.FC = () => {
                     ))}
                   </div>
                 </div>
-
                 {activeLiveSubTab === "grupos_vivo" && (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {GRUPOS.map((g) => (
@@ -994,7 +992,6 @@ const App: React.FC = () => {
                     ))}
                   </div>
                 )}
-
                 {activeLiveSubTab === "ranking3_vivo" && (
                   <div className="max-w-3xl mx-auto space-y-6">
                     <div className="bg-zinc-900/50 p-10 rounded-[3rem] border border-zinc-800 shadow-2xl relative overflow-hidden">
@@ -1079,14 +1076,12 @@ const App: React.FC = () => {
                     </div>
                   </div>
                 )}
-
                 {activeLiveSubTab === "clasificacion_vivo" && (
                   <DetailedStandingsView
                     tablaGeneral={tablaOficial}
                     isReadOnly={true}
                   />
                 )}
-
                 {activeLiveSubTab === "eliminatorias_vivo" && (
                   <div className="space-y-16">
                     {todasFasesEliminatorias.map((fase) => {
@@ -1131,7 +1126,6 @@ const App: React.FC = () => {
                     })}
                   </div>
                 )}
-
                 {activeLiveSubTab === "llaves_vivo" && (
                   <KnockoutFullBracket
                     llaves={llavesOficiales}
@@ -1143,7 +1137,6 @@ const App: React.FC = () => {
                 )}
               </div>
             )}
-
             {activeTab === "admin" && isAdmin && (
               <AdminPanel
                 currentUser={user!}
@@ -1249,13 +1242,11 @@ const App: React.FC = () => {
                     ))}
                   </div>
                 </div>
-
                 <div className="space-y-16">
                   {todasFasesEliminatorias.map((fase) => {
                     if (!selectedEliminatoriasFases.includes(fase)) return null;
                     const matchesByFase = llaves.filter((m) => m.fase === fase);
                     if (matchesByFase.length === 0) return null;
-
                     return (
                       <div
                         key={fase}
@@ -1274,7 +1265,6 @@ const App: React.FC = () => {
                             {matchesByFase.length > 1 ? "s" : ""}
                           </span>
                         </div>
-
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
                           {matchesByFase.map((m) => (
                             <MatchCard
@@ -1296,7 +1286,6 @@ const App: React.FC = () => {
                     );
                   })}
                 </div>
-
                 {selectedEliminatoriasFases.length === 0 && (
                   <div className="flex flex-col items-center justify-center py-32 space-y-6 bg-zinc-900/10 rounded-[4rem] border-2 border-dashed border-zinc-800">
                     <LayoutGrid className="w-16 h-16 text-zinc-800" />
@@ -1314,6 +1303,16 @@ const App: React.FC = () => {
                 onUpdate={actMatch}
                 disabled={isFrozen}
                 isSimulationComplete={false}
+              />
+            )}
+            {activeTab === "ranking" && (
+              <Leaderboard
+                currentUser={
+                  user ? { id: user.id, username: user.username } : null
+                }
+                allScores={userScores}
+                realScores={realScores}
+                onRefresh={calcularScores}
               />
             )}
           </div>
@@ -1334,7 +1333,23 @@ const App: React.FC = () => {
           estadio={selectedStadium}
           onClose={() => setSelectedStadium(null)}
         />
-
+        {showScoreBreakdown && selectedUserForBreakdown && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+              <ScoreBreakdown
+                calculations={
+                  userScores.find(
+                    (s) => s.username === selectedUserForBreakdown
+                  )?.desglose?.eliminatorias || []
+                }
+                onClose={() => {
+                  setShowScoreBreakdown(false);
+                  setSelectedUserForBreakdown(null);
+                }}
+              />
+            </div>
+          </div>
+        )}
         {showToast && (
           <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[150] animate-in slide-in-from-bottom-5">
             <div

@@ -129,3 +129,72 @@ export enum SportType {
   BASKETBALL = "BASKETBALL",
   TENNIS = "TENNIS",
 }
+
+// ============================================================================
+// TIPOS PARA SISTEMA DE PUNTUACIÓN (Agregar al final de types.ts)
+// ============================================================================
+
+export type TipoAcierto =
+  | "EXACTO"
+  | "EMPATE_EXACTO"
+  | "GANADOR"
+  | "EMPATE"
+  | "INVERTIDO";
+
+export interface Bonificacion {
+  tipo: "CLASIFICADO" | "PENALES" | "GANADOR_PENALES" | "CAMPEON";
+  puntos: number;
+  descripcion: string;
+}
+
+export interface ScoreCalculation {
+  matchId: number;
+  fase: Fase;
+  tipoAcierto?: TipoAcierto;
+  diferencia?: number;
+  factor?: number;
+  puntosBase?: number;
+  puntosCalculados?: number;
+  puntosRedondeados?: number;
+  pisoAplicado?: boolean;
+  puntosFinales: number;
+  bonificaciones: Bonificacion[];
+  detalle: string;
+  timestamp: string;
+}
+
+export interface HistorialPuntaje {
+  fecha: string; // ISO date string
+  partidosJugados: number;
+  puntajeAcumuladoGrupos: number;
+  puntajeAcumuladoEliminatorias: number;
+  puntajeAcumuladoTotal: number;
+  posicionEnEseMomento: number;
+}
+
+export interface UserScore {
+  userId: string;
+  username: string;
+  puntajeGrupos: number;
+  puntajeEliminatorias: number;
+  puntajeTotal: number;
+  aciertosExactos: number;
+  bonificacionesPenales: number;
+  historial: HistorialPuntaje[];
+  desglose?: {
+    grupos: ScoreCalculation[];
+    eliminatorias: ScoreCalculation[];
+  };
+  ultimaActualizacion: string;
+}
+
+export interface LeaderboardEntry {
+  username: string;
+  lastCalculationDate: string;
+  scoreGroups: number;
+  scoreKnockout: number;
+  scoreTotal: number;
+  position: number;
+  aciertosExactos: number;
+  bonificacionesPenales: number;
+}
