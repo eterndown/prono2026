@@ -10,6 +10,7 @@ import {
   Info,
   Users,
   Search,
+  ArrowUpDown,
 } from "lucide-react";
 
 interface LeaderboardProps {
@@ -18,6 +19,14 @@ interface LeaderboardProps {
   realScores: Record<number, any>;
   onRefresh?: () => void;
 }
+
+type SortKey =
+  | "position"
+  | "username"
+  | "scoreGroups"
+  | "scoreKnockout"
+  | "scoreTotal";
+type SortDirection = "asc" | "desc";
 
 const Leaderboard: React.FC<LeaderboardProps> = ({
   currentUser,
@@ -29,8 +38,8 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortConfig, setSortConfig] = useState<{
-    key: keyof LeaderboardEntry;
-    direction: "asc" | "desc";
+    key: SortKey;
+    direction: SortDirection;
   }>({
     key: "scoreTotal",
     direction: "desc",
@@ -44,44 +53,51 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
     }
   }, [allScores, realScores]);
 
-  // Filtrar por búsqueda
+  // Filtrar por búsqueda (username)
   const filteredRanking = useMemo(() => {
-    if (!searchTerm) return ranking;
+    if (!searchTerm.trim()) return ranking;
+    const term = searchTerm.toLowerCase();
     return ranking.filter((entry) =>
-      entry.username.toLowerCase().includes(searchTerm.toLowerCase())
+      entry.username.toLowerCase().includes(term)
     );
   }, [ranking, searchTerm]);
 
-  // Ordenar tabla
+  // Ordenar tabla con lógica mejorada
   const sortedRanking = useMemo(() => {
     const sortable = [...filteredRanking];
-    if (sortConfig.key) {
-      sortable.sort((a, b) => {
-        const aVal = a[sortConfig.key];
-        const bVal = b[sortConfig.key];
 
-        if (typeof aVal === "string" && typeof bVal === "string") {
-          return sortConfig.direction === "asc"
-            ? aVal.localeCompare(bVal)
-            : bVal.localeCompare(aVal);
-        }
+    sortable.sort((a, b) => {
+      const { key, direction } = sortConfig;
+      const multiplier = direction === "asc" ? 1 : -1;
 
-        if (typeof aVal === "number" && typeof bVal === "number") {
-          return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
-        }
+      if (key === "username") {
+        return multiplier * a.username.localeCompare(b.username);
+      }
 
-        return 0;
-      });
-    }
+      if (key === "position") {
+        return multiplier * (a.position - b.position);
+      }
+
+      // Para puntajes: mayor es mejor, pero respetamos dirección
+      const aVal = a[key as keyof LeaderboardEntry] as number;
+      const bVal = b[key as keyof LeaderboardEntry] as number;
+
+      return multiplier * (aVal - bVal);
+    });
+
     return sortable;
   }, [filteredRanking, sortConfig]);
 
-  const requestSort = (key: keyof LeaderboardEntry) => {
-    let direction: "asc" | "desc" = "desc";
-    if (sortConfig.key === key && sortConfig.direction === "desc") {
-      direction = "asc";
-    }
-    setSortConfig({ key, direction });
+  const requestSort = (key: SortKey) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        // Cambiar dirección si ya está ordenado por esta columna
+        return { key, direction: prev.direction === "asc" ? "desc" : "asc" };
+      }
+      // Nueva columna: desc por defecto para puntajes, asc para username
+      const defaultDirection = key === "username" ? "asc" : "desc";
+      return { key, direction: defaultDirection };
+    });
   };
 
   const handleDownload = (username: string) => {
@@ -101,6 +117,18 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
   const currentUserEntry = ranking.find(
     (e) => e.username === currentUser?.username
   );
+
+  // Icono de ordenamiento
+  const SortIcon = ({ column }: { column: SortKey }) => {
+    if (sortConfig.key !== column) {
+      return <ArrowUpDown className="w-3 h-3 opacity-30" />;
+    }
+    return sortConfig.direction === "asc" ? (
+      <ChevronUp className="w-3 h-3 text-emerald-400" />
+    ) : (
+      <ChevronDown className="w-3 h-3 text-emerald-400" />
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -140,11 +168,19 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
         <input
           type="text"
-          placeholder="Buscar usuario..."
+          placeholder="Buscar usuario por nombre..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-12 pr-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
+          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-12 pr-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all placeholder:text-zinc-600"
         />
+        {searchTerm && (
+          <button
+            onClick={() => setSearchTerm("")}
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Mi Posición (si está logueado) */}
@@ -173,141 +209,177 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
         </div>
       )}
 
-      {/* Tabla de Ranking - Muestra TODOS los usuarios */}
-      <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900/30">
-        <table className="w-full text-left text-sm">
-          <thead className="text-[10px] font-black uppercase text-zinc-500 bg-zinc-950/50 tracking-widest">
-            <tr>
-              <th className="px-4 py-3 w-16">
-                <button
-                  onClick={() => requestSort("position")}
-                  className="flex items-center gap-1 hover:text-emerald-400 transition-colors"
-                >
-                  #{" "}
-                  {sortConfig.key === "position" &&
-                    (sortConfig.direction === "asc" ? (
-                      <ChevronUp className="w-3 h-3" />
-                    ) : (
-                      <ChevronDown className="w-3 h-3" />
-                    ))}
-                </button>
-              </th>
-              <th className="px-4 py-3">Usuario</th>
-              <th className="px-4 py-3 text-center">
-                <button
-                  onClick={() => requestSort("scoreGroups")}
-                  className="flex items-center gap-1 justify-center hover:text-emerald-400 transition-colors"
-                >
-                  Grupos{" "}
-                  {sortConfig.key === "scoreGroups" &&
-                    (sortConfig.direction === "asc" ? (
-                      <ChevronUp className="w-3 h-3" />
-                    ) : (
-                      <ChevronDown className="w-3 h-3" />
-                    ))}
-                </button>
-              </th>
-              <th className="px-4 py-3 text-center">
-                <button
-                  onClick={() => requestSort("scoreKnockout")}
-                  className="flex items-center gap-1 justify-center hover:text-emerald-400 transition-colors"
-                >
-                  Elim.{" "}
-                  {sortConfig.key === "scoreKnockout" &&
-                    (sortConfig.direction === "asc" ? (
-                      <ChevronUp className="w-3 h-3" />
-                    ) : (
-                      <ChevronDown className="w-3 h-3" />
-                    ))}
-                </button>
-              </th>
-              <th className="px-4 py-3 text-center font-black text-white">
-                <button
-                  onClick={() => requestSort("scoreTotal")}
-                  className="flex items-center gap-1 justify-center hover:text-emerald-400 transition-colors"
-                >
-                  TOTAL{" "}
-                  {sortConfig.key === "scoreTotal" &&
-                    (sortConfig.direction === "asc" ? (
-                      <ChevronUp className="w-3 h-3" />
-                    ) : (
-                      <ChevronDown className="w-3 h-3" />
-                    ))}
-                </button>
-              </th>
-              <th className="px-4 py-3 text-right">Acción</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-800/30">
-            {sortedRanking.map((entry, index) => {
-              const isCurrentUser = entry.username === currentUser?.username;
-              const isTop3 = entry.position <= 3;
+      {/* Tabla de Ranking - CON SCROLL VERTICAL */}
+      <div className="bg-zinc-900/30 border border-zinc-800 rounded-2xl overflow-hidden">
+        {/* Header de la tabla */}
+        <div className="bg-zinc-950/50 border-b border-zinc-800 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">
+              Ordenar por:
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => requestSort("scoreTotal")}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${
+                  sortConfig.key === "scoreTotal"
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                    : "text-zinc-500 hover:text-white hover:bg-zinc-800"
+                }`}
+              >
+                <Trophy className="w-3 h-3" />
+                Puntaje
+                <SortIcon column="scoreTotal" />
+              </button>
+              <button
+                onClick={() => requestSort("username")}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${
+                  sortConfig.key === "username"
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                    : "text-zinc-500 hover:text-white hover:bg-zinc-800"
+                }`}
+              >
+                <Users className="w-3 h-3" />
+                Usuario
+                <SortIcon column="username" />
+              </button>
+            </div>
+          </div>
+        </div>
 
-              return (
-                <tr
-                  key={entry.username}
-                  className={`hover:bg-zinc-800/30 transition-colors ${
-                    isCurrentUser
-                      ? "bg-emerald-500/5 ring-1 ring-emerald-500/20"
-                      : ""
-                  } ${isTop3 ? "bg-amber-500/5" : ""}`}
+        {/* Contenedor con SCROLL VERTICAL para todos los usuarios */}
+        <div className="max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-zinc-900">
+          <table className="w-full text-left text-sm">
+            <thead className="text-[10px] font-black uppercase text-zinc-500 bg-zinc-950/30 tracking-widest sticky top-0 z-10">
+              <tr>
+                <th
+                  className="px-4 py-3 w-16 cursor-pointer hover:text-emerald-400 transition-colors"
+                  onClick={() => requestSort("position")}
                 >
-                  <td
-                    className={`px-4 py-4 font-black ${
-                      isTop3
-                        ? entry.position === 1
-                          ? "text-amber-400"
-                          : entry.position === 2
-                          ? "text-zinc-300"
-                          : "text-amber-600/80"
-                        : "text-zinc-600"
-                    }`}
+                  <div className="flex items-center gap-1">
+                    # <SortIcon column="position" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 cursor-pointer hover:text-emerald-400 transition-colors"
+                  onClick={() => requestSort("username")}
+                >
+                  <div className="flex items-center gap-1">
+                    Usuario <SortIcon column="username" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 text-center cursor-pointer hover:text-emerald-400 transition-colors"
+                  onClick={() => requestSort("scoreGroups")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Grupos <SortIcon column="scoreGroups" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 text-center cursor-pointer hover:text-emerald-400 transition-colors"
+                  onClick={() => requestSort("scoreKnockout")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Elim. <SortIcon column="scoreKnockout" />
+                  </div>
+                </th>
+                <th
+                  className="px-4 py-3 text-center font-black text-white cursor-pointer hover:text-emerald-400 transition-colors"
+                  onClick={() => requestSort("scoreTotal")}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    TOTAL <SortIcon column="scoreTotal" />
+                  </div>
+                </th>
+                <th className="px-4 py-3 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-800/30">
+              {sortedRanking.map((entry) => {
+                const isCurrentUser = entry.username === currentUser?.username;
+                const isTop3 = entry.position <= 3;
+
+                return (
+                  <tr
+                    key={entry.username}
+                    className={`hover:bg-zinc-800/30 transition-colors ${
+                      isCurrentUser
+                        ? "bg-emerald-500/5 ring-1 ring-emerald-500/20"
+                        : ""
+                    } ${isTop3 ? "bg-amber-500/5" : ""}`}
                   >
-                    {entry.position}
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`font-black ${
-                          isCurrentUser ? "text-emerald-400" : "text-white"
-                        }`}
-                      >
-                        @{entry.username}
-                      </span>
-                      {isCurrentUser && (
-                        <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-[9px] font-black uppercase">
-                          Vos
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 text-center font-bold text-zinc-400">
-                    {entry.scoreGroups}
-                  </td>
-                  <td className="px-4 py-4 text-center font-bold text-zinc-400">
-                    {entry.scoreKnockout}
-                  </td>
-                  <td
-                    className={`px-4 py-4 text-center font-black ${
-                      isTop3 ? "text-amber-400" : "text-white"
-                    }`}
-                  >
-                    {entry.scoreTotal}
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    <button
-                      onClick={() => handleDownload(entry.username)}
-                      className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-emerald-400 transition-colors"
-                      title="Descargar progreso"
+                    <td
+                      className={`px-4 py-4 font-black ${
+                        isTop3
+                          ? entry.position === 1
+                            ? "text-amber-400"
+                            : entry.position === 2
+                            ? "text-zinc-300"
+                            : "text-amber-600/80"
+                          : "text-zinc-600"
+                      }`}
                     >
-                      <Download className="w-4 h-4" />
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                      {entry.position}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`font-black ${
+                            isCurrentUser ? "text-emerald-400" : "text-white"
+                          }`}
+                        >
+                          @{entry.username}
+                        </span>
+                        {isCurrentUser && (
+                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-[9px] font-black uppercase">
+                            Vos
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-center font-bold text-zinc-400">
+                      {entry.scoreGroups}
+                    </td>
+                    <td className="px-4 py-4 text-center font-bold text-zinc-400">
+                      {entry.scoreKnockout}
+                    </td>
+                    <td
+                      className={`px-4 py-4 text-center font-black ${
+                        isTop3 ? "text-amber-400" : "text-white"
+                      }`}
+                    >
+                      {entry.scoreTotal}
+                    </td>
+                    <td className="px-4 py-4 text-right">
+                      <button
+                        onClick={() => handleDownload(entry.username)}
+                        className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-emerald-400 transition-colors"
+                        title="Descargar progreso"
+                      >
+                        <Download className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer de la tabla */}
+        <div className="px-4 py-3 bg-zinc-950/30 border-t border-zinc-800 flex items-center justify-between text-[10px]">
+          <span className="text-zinc-500">
+            Mostrando {sortedRanking.length} de {ranking.length} usuarios
+          </span>
+          {searchTerm && (
+            <button
+              onClick={() => setSearchTerm("")}
+              className="text-emerald-400 hover:text-emerald-300 font-black uppercase"
+            >
+              Limpiar búsqueda
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Info de Criterios de Desempate */}
@@ -330,6 +402,22 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
           <p className="text-[10px] text-zinc-700 mt-2">
             Sé el primero en cargar tus pronósticos
           </p>
+        </div>
+      )}
+
+      {/* Mensaje si la búsqueda no tiene resultados */}
+      {searchTerm && sortedRanking.length === 0 && (
+        <div className="text-center py-12 bg-zinc-900/20 rounded-xl border border-zinc-800">
+          <Search className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
+          <p className="text-sm font-bold text-zinc-500">
+            No se encontraron usuarios con "{searchTerm}"
+          </p>
+          <button
+            onClick={() => setSearchTerm("")}
+            className="mt-3 text-emerald-400 text-[10px] font-black uppercase hover:text-emerald-300"
+          >
+            Ver todos los usuarios
+          </button>
         </div>
       )}
     </div>
