@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Leaderboard from "./components/Leaderboard";
 import ScoreBreakdown from "./components/ScoreBreakdown";
+import ScoringGuide from "./components/ScoringGuide";
+import { calcularPuntajeTotal } from "./services/scoringSystem";
 import { UserScore } from "./types";
 import {
   Partido,
@@ -13,7 +15,6 @@ import {
   TimeConfig,
   Fase,
 } from "./types";
-import ScoringGuide from "./components/ScoringGuide";
 import {
   GRUPOS,
   EQUIPOS,
@@ -30,7 +31,6 @@ import {
   isValidScore,
   simularPenales,
 } from "./services/fifaLogic";
-import { calcularPuntajeTotal } from "./services/scoringSystem";
 import { api } from "./services/api";
 import { MatchCard } from "./components/MatchCard";
 import DetailedStandingsView from "./components/DetailedStandingsView";
@@ -175,6 +175,7 @@ const App: React.FC = () => {
   const [selectedUserForBreakdown, setSelectedUserForBreakdown] = useState<
     string | null
   >(null);
+  const [showScoringGuide, setShowScoringGuide] = useState(false);
 
   const toast = useCallback(
     (message: string, type: "success" | "error" = "success") => {
@@ -328,25 +329,19 @@ const App: React.FC = () => {
     globalSettings.knockoutPhaseLocked,
     realScores,
   ]);
-  const calcularScores = useCallback(() => {
-    if (!user) return;
-    const todosLosPartidos = [...PARTIDOS_INICIALES, ...llaves];
-    const score = calcularPuntajeTotal(
-      todosLosPartidos,
-      pronosticos,
-      realScores
+
+  // LLAVES PARA LA VISTA VIVO (Fija en datos 100% reales)
+  const llavesOficiales = useMemo(() => {
+    return resolverLlaves(
+      tablaOficial,
+      mejoresTercerosOficiales,
+      realScores,
+      undefined,
+      true
     );
-    score.userId = user.id;
-    score.username = user.username;
-    setUserScores([score]);
-  }, [user, pronosticos, realScores, llaves]);
+  }, [tablaOficial, mejoresTercerosOficiales, realScores]);
 
-  useEffect(() => {
-    calcularScores();
-  }, [calcularScores]);
-  const [showScoringGuide, setShowScoringGuide] = useState(false);
-
-  // Calcular puntajes de todos los usuarios (se ejecuta cuando hay resultados reales)
+  // === FUNCIÓN PARA CARGAR LEADERBOARD DESDE BACKEND ===
   const cargarLeaderboard = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -367,17 +362,6 @@ const App: React.FC = () => {
       cargarLeaderboard();
     }
   }, [activeTab, cargarLeaderboard]);
-
-  // LLAVES PARA LA VISTA VIVO (Fija en datos 100% reales)
-  const llavesOficiales = useMemo(() => {
-    return resolverLlaves(
-      tablaOficial,
-      mejoresTercerosOficiales,
-      realScores,
-      undefined,
-      true
-    );
-  }, [tablaOficial, mejoresTercerosOficiales, realScores]);
 
   const actMatch = useCallback(
     (id: number, l: any, v: any, pl?: any, pv?: any) => {
@@ -869,12 +853,6 @@ const App: React.FC = () => {
                       onClick={handleRandomGroups}
                       className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-lg font-black text-[9px] uppercase hover:bg-emerald-500/20 transition-all"
                     >
-                      <button
-                        onClick={() => setShowScoringGuide(true)}
-                        className="flex items-center gap-2 px-4 py-3 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl font-black text-[10px] uppercase hover:text-emerald-400 hover:border-emerald-500/30 transition-all"
-                      >
-                        <Trophy className="w-4 h-4" /> Puntuación
-                      </button>
                       <Wand2 className="w-3.5 h-3.5" /> Sim Grupos
                     </button>
                     <button
@@ -1346,7 +1324,7 @@ const App: React.FC = () => {
                 }
                 allScores={userScores}
                 realScores={realScores}
-                onRefresh={calcularScores}
+                onRefresh={cargarLeaderboard}
               />
             )}
           </div>
@@ -1366,10 +1344,6 @@ const App: React.FC = () => {
           isOpen={!!selectedStadium}
           estadio={selectedStadium}
           onClose={() => setSelectedStadium(null)}
-        />
-        <ScoringGuide
-          isOpen={showScoringGuide}
-          onClose={() => setShowScoringGuide(false)}
         />
         <ScoringGuide
           isOpen={showScoringGuide}
