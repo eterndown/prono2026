@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
 import Leaderboard from "./components/Leaderboard";
 import ScoreBreakdown from "./components/ScoreBreakdown";
-import { calcularPuntajeTotal } from "./services/scoringSystem";
 import { UserScore } from "./types";
 import {
   Partido,
@@ -31,6 +30,7 @@ import {
   isValidScore,
   simularPenales,
 } from "./services/fifaLogic";
+import { calcularPuntajeTotal } from "./services/scoringSystem";
 import { api } from "./services/api";
 import { MatchCard } from "./components/MatchCard";
 import DetailedStandingsView from "./components/DetailedStandingsView";
@@ -328,9 +328,6 @@ const App: React.FC = () => {
     globalSettings.knockoutPhaseLocked,
     realScores,
   ]);
-  const [showScoringGuide, setShowScoringGuide] = useState(false);
-
-  // Calcular puntajes de todos los usuarios (se ejecuta cuando hay resultados reales)
   const calcularScores = useCallback(() => {
     if (!user) return;
     const todosLosPartidos = [...PARTIDOS_INICIALES, ...llaves];
@@ -347,6 +344,29 @@ const App: React.FC = () => {
   useEffect(() => {
     calcularScores();
   }, [calcularScores]);
+  const [showScoringGuide, setShowScoringGuide] = useState(false);
+
+  // Calcular puntajes de todos los usuarios (se ejecuta cuando hay resultados reales)
+  const cargarLeaderboard = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const res = await api.getAllScores();
+      if (res.success && res.data?.scores) {
+        setUserScores(res.data.scores);
+      }
+    } catch (error) {
+      console.error("Error cargando leaderboard:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Ejecutar cuando se abre la pestaña ranking
+  useEffect(() => {
+    if (activeTab === "ranking") {
+      cargarLeaderboard();
+    }
+  }, [activeTab, cargarLeaderboard]);
 
   // LLAVES PARA LA VISTA VIVO (Fija en datos 100% reales)
   const llavesOficiales = useMemo(() => {

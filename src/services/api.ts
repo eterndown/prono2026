@@ -110,4 +110,5 @@ export const api = {
 
   adminGetTimeConfig: (username: string) =>
     callGAS({ action: "getConfigSistema", username }),
+  getAllScores: () => callGAS({ action: "getAllScores" }),
 };
