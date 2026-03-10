@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { LeaderboardEntry, UserScore } from "../types";
-import { api } from "../services/api";
 import { generarRanking, exportarProgresoCSV } from "../services/scoringSystem";
 import {
   Trophy,
@@ -9,6 +8,8 @@ import {
   ChevronUp,
   ChevronDown,
   Info,
+  Users,
+  Search,
 } from "lucide-react";
 
 interface LeaderboardProps {
@@ -26,6 +27,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
 }) => {
   const [ranking, setRanking] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [sortConfig, setSortConfig] = useState<{
     key: keyof LeaderboardEntry;
     direction: "asc" | "desc";
@@ -42,9 +44,17 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
     }
   }, [allScores, realScores]);
 
+  // Filtrar por búsqueda
+  const filteredRanking = useMemo(() => {
+    if (!searchTerm) return ranking;
+    return ranking.filter((entry) =>
+      entry.username.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [ranking, searchTerm]);
+
   // Ordenar tabla
-  const sortedRanking = React.useMemo(() => {
-    const sortable = [...ranking];
+  const sortedRanking = useMemo(() => {
+    const sortable = [...filteredRanking];
     if (sortConfig.key) {
       sortable.sort((a, b) => {
         const aVal = a[sortConfig.key];
@@ -64,7 +74,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
       });
     }
     return sortable;
-  }, [ranking, sortConfig]);
+  }, [filteredRanking, sortConfig]);
 
   const requestSort = (key: keyof LeaderboardEntry) => {
     let direction: "asc" | "desc" = "desc";
@@ -97,10 +107,18 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-3">
-          <Trophy className="w-6 h-6 text-amber-400" />
-          <h2 className="text-2xl font-black uppercase italic text-white tracking-tighter">
-            Ranking Global
-          </h2>
+          <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
+            <Trophy className="w-8 h-8 text-amber-400" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-black uppercase italic text-white tracking-tighter">
+              Ranking Global
+            </h2>
+            <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mt-1 flex items-center gap-2">
+              <Users className="w-3 h-3" />
+              {ranking.length} Usuarios Participando
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -115,6 +133,18 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
             Actualizar
           </button>
         </div>
+      </div>
+
+      {/* Barra de Búsqueda */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+        <input
+          type="text"
+          placeholder="Buscar usuario..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-12 pr-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all"
+        />
       </div>
 
       {/* Mi Posición (si está logueado) */}
@@ -143,7 +173,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
         </div>
       )}
 
-      {/* Tabla de Ranking */}
+      {/* Tabla de Ranking - Muestra TODOS los usuarios */}
       <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900/30">
         <table className="w-full text-left text-sm">
           <thead className="text-[10px] font-black uppercase text-zinc-500 bg-zinc-950/50 tracking-widest">
@@ -289,6 +319,19 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
           penales → 6) Empate mantenido
         </p>
       </div>
+
+      {/* Mensaje si no hay usuarios */}
+      {ranking.length === 0 && (
+        <div className="text-center py-20">
+          <Users className="w-16 h-16 text-zinc-800 mx-auto mb-4" />
+          <p className="text-sm font-bold text-zinc-600 uppercase">
+            No hay usuarios aún
+          </p>
+          <p className="text-[10px] text-zinc-700 mt-2">
+            Sé el primero en cargar tus pronósticos
+          </p>
+        </div>
+      )}
     </div>
   );
 };

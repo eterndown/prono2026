@@ -14,6 +14,7 @@ import {
   TimeConfig,
   Fase,
 } from "./types";
+import ScoringGuide from "./components/ScoringGuide";
 import {
   GRUPOS,
   EQUIPOS,
@@ -327,6 +328,7 @@ const App: React.FC = () => {
     globalSettings.knockoutPhaseLocked,
     realScores,
   ]);
+  const [showScoringGuide, setShowScoringGuide] = useState(false);
 
   // Calcular puntajes de todos los usuarios (se ejecuta cuando hay resultados reales)
   const calcularScores = useCallback(() => {
@@ -833,6 +835,12 @@ const App: React.FC = () => {
                 >
                   <BookOpen className="w-4 h-4" /> Guía
                 </button>
+                <button
+                  onClick={() => setShowScoringGuide(true)}
+                  className="flex items-center gap-2 px-4 py-3 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl font-black text-[10px] uppercase hover:text-emerald-400 hover:border-emerald-500/30 transition-all"
+                >
+                  <Trophy className="w-4 h-4" /> Puntuación
+                </button>
               </div>
               {activeTab !== "vivo" && !isFrozen && (
                 <div className="flex flex-wrap gap-3">
@@ -841,6 +849,12 @@ const App: React.FC = () => {
                       onClick={handleRandomGroups}
                       className="flex items-center gap-2 px-4 py-2 bg-emerald-500/10 text-emerald-500 rounded-lg font-black text-[9px] uppercase hover:bg-emerald-500/20 transition-all"
                     >
+                      <button
+                        onClick={() => setShowScoringGuide(true)}
+                        className="flex items-center gap-2 px-4 py-3 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded-xl font-black text-[10px] uppercase hover:text-emerald-400 hover:border-emerald-500/30 transition-all"
+                      >
+                        <Trophy className="w-4 h-4" /> Puntuación
+                      </button>
                       <Wand2 className="w-3.5 h-3.5" /> Sim Grupos
                     </button>
                     <button
@@ -1332,6 +1346,14 @@ const App: React.FC = () => {
           isOpen={!!selectedStadium}
           estadio={selectedStadium}
           onClose={() => setSelectedStadium(null)}
+        />
+        <ScoringGuide
+          isOpen={showScoringGuide}
+          onClose={() => setShowScoringGuide(false)}
+        />
+        <ScoringGuide
+          isOpen={showScoringGuide}
+          onClose={() => setShowScoringGuide(false)}
         />
         {showScoreBreakdown && selectedUserForBreakdown && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm">
