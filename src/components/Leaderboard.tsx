@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { LeaderboardEntry, UserScore } from "../types";
-import { generarRanking, exportarProgresoCSV } from "../services/scoringSystem";
+import { LeaderboardEntry, UserScore, Partido, Pronostico } from "../types";
+import { generarRanking } from "../services/scoringSystem";
+import {
+  exportarProgresoXLSX,
+  exportarRankingPDF,
+} from "../services/exportSystem";
 import {
   Trophy,
   Download,
@@ -11,13 +15,18 @@ import {
   Users,
   Search,
   ArrowUpDown,
+  FileText,
 } from "lucide-react";
+import { PARTIDOS_INICIALES } from "../constants";
 
 interface LeaderboardProps {
   currentUser: { id: string; username: string } | null;
   allScores: UserScore[];
   realScores: Record<number, any>;
   onRefresh?: () => void;
+  // Props necesarios para exportación XLSX
+  todosLosPartidos?: Partido[];
+  pronosticos?: Record<number, Pronostico>;
 }
 
 type SortKey =
@@ -33,6 +42,8 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
   allScores,
   realScores,
   onRefresh,
+  todosLosPartidos = [],
+  pronosticos = {},
 }) => {
   const [ranking, setRanking] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -100,18 +111,27 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
     });
   };
 
+  // Descargar progreso de usuario en XLSX
   const handleDownload = (username: string) => {
     const userScore = allScores.find((s) => s.username === username);
     if (!userScore) return;
 
-    const csv = exportarProgresoCSV(userScore);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `prono2026-${username}-progreso.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    // Usar partidos combinados si no se pasan como prop
+    const partidos =
+      todosLosPartidos.length > 0 ? todosLosPartidos : PARTIDOS_INICIALES;
+
+    exportarProgresoXLSX(
+      username,
+      userScore,
+      partidos,
+      pronosticos,
+      realScores
+    );
+  };
+
+  // Exportar ranking completo a PDF
+  const handleExportRankingPDF = () => {
+    exportarRankingPDF(ranking);
   };
 
   const currentUserEntry = ranking.find(
@@ -150,6 +170,16 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Botón PDF Ranking */}
+          <button
+            onClick={handleExportRankingPDF}
+            className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-zinc-300 text-xs font-black uppercase transition-all"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            PDF Ranking
+          </button>
+
+          {/* Botón Actualizar */}
           <button
             onClick={onRefresh}
             disabled={isLoading}
@@ -204,7 +234,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
             className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-lg text-[10px] font-black uppercase transition-all"
           >
             <Download className="w-3 h-3" />
-            Mi Progreso
+            Mi Progreso (.xlsx)
           </button>
         </div>
       )}
@@ -354,7 +384,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
                       <button
                         onClick={() => handleDownload(entry.username)}
                         className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-emerald-400 transition-colors"
-                        title="Descargar progreso"
+                        title="Descargar progreso en Excel"
                       >
                         <Download className="w-4 h-4" />
                       </button>

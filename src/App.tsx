@@ -1325,6 +1325,8 @@ const App: React.FC = () => {
                 allScores={userScores}
                 realScores={realScores}
                 onRefresh={cargarLeaderboard}
+                todosLosPartidos={[...PARTIDOS_INICIALES, ...llaves]}
+                pronosticos={pronosticos}
               />
             )}
           </div>
