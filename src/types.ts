@@ -134,12 +134,7 @@ export enum SportType {
 // TIPOS PARA SISTEMA DE PUNTUACIÓN (Agregar al final de types.ts)
 // ============================================================================
 
-export type TipoAcierto =
-  | "EXACTO"
-  | "EMPATE_EXACTO"
-  | "GANADOR"
-  | "EMPATE"
-  | "INVERTIDO";
+export type TipoAcierto = "EXACTO" | "GANADOR" | "EMPATE" | "INVERTIDO";
 
 export interface Bonificacion {
   tipo: "CLASIFICADO" | "PENALES" | "GANADOR_PENALES" | "CAMPEON";

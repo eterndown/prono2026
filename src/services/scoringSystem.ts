@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE PUNTUACIÓN OFICIAL - PRONO2026
- * Versión: 1.0.0 | Compatible con 104 partidos (72 grupos + 32 eliminatorias)
+ * Versión: 1.1.0 | Compatible con 104 partidos (72 grupos + 32 eliminatorias)
  *
  * Principios:
  * - Justicia: Reglas claras, aplicadas consistentemente
@@ -19,29 +19,17 @@ import {
 } from "../types";
 
 // ============================================================================
-// CONFIGURACIÓN BASE
+// CONFIGURACIÓN BASE - CORREGIDA
 // ============================================================================
 
 export const PUNTOS_BASE: Record<Fase, Record<TipoAcierto, number>> = {
-  Grupos: { EXACTO: 3, EMPATE_EXACTO: 2, GANADOR: 3, EMPATE: 2, INVERTIDO: 2 },
-  Dieciseisavos: {
-    EXACTO: 3,
-    EMPATE_EXACTO: 2,
-    GANADOR: 3,
-    EMPATE: 2,
-    INVERTIDO: 2,
-  },
-  Octavos: { EXACTO: 4, EMPATE_EXACTO: 3, GANADOR: 4, EMPATE: 3, INVERTIDO: 3 },
-  Cuartos: { EXACTO: 5, EMPATE_EXACTO: 4, GANADOR: 5, EMPATE: 4, INVERTIDO: 4 },
-  Semis: { EXACTO: 6, EMPATE_EXACTO: 5, GANADOR: 6, EMPATE: 5, INVERTIDO: 5 },
-  TercerPuesto: {
-    EXACTO: 5,
-    EMPATE_EXACTO: 4,
-    GANADOR: 5,
-    EMPATE: 4,
-    INVERTIDO: 4,
-  }, // Igual que Cuartos
-  Final: { EXACTO: 7, EMPATE_EXACTO: 6, GANADOR: 7, EMPATE: 6, INVERTIDO: 6 },
+  Grupos: { EXACTO: 3, GANADOR: 3, EMPATE: 2, INVERTIDO: 2 },
+  Dieciseisavos: { EXACTO: 3, GANADOR: 3, EMPATE: 2, INVERTIDO: 2 },
+  Octavos: { EXACTO: 4, GANADOR: 4, EMPATE: 3, INVERTIDO: 3 },
+  Cuartos: { EXACTO: 5, GANADOR: 5, EMPATE: 4, INVERTIDO: 4 },
+  Semis: { EXACTO: 6, GANADOR: 6, EMPATE: 5, INVERTIDO: 5 },
+  TercerPuesto: { EXACTO: 5, GANADOR: 5, EMPATE: 4, INVERTIDO: 4 },
+  Final: { EXACTO: 7, GANADOR: 7, EMPATE: 6, INVERTIDO: 6 },
 };
 
 export const FACTOR_CERCANIA: Record<number, number> = {
@@ -61,9 +49,6 @@ export const PISO_MINIMO: Record<"GANADOR" | "EMPATE", number> = {
 // FUNCIONES AUXILIARES
 // ============================================================================
 
-/**
- * Valida si un valor de gol es numérico válido
- */
 export const isValidScore = (val: any): boolean => {
   if (val === null || val === undefined || val === "" || val === "-")
     return false;
@@ -71,10 +56,6 @@ export const isValidScore = (val: any): boolean => {
   return !isNaN(n) && isFinite(n) && n >= 0;
 };
 
-/**
- * Calcula la diferencia total de goles entre pronóstico y resultado real
- * Fórmula: |GL_prono - GL_real| + |GV_prono - GV_real|
- */
 export const calcularDiferencia = (
   glProno: number,
   gvProno: number,
@@ -84,69 +65,53 @@ export const calcularDiferencia = (
   return Math.abs(glProno - glReal) + Math.abs(gvProno - gvReal);
 };
 
-/**
- * Obtiene el factor de cercanía según la diferencia de goles
- */
 export const obtenerFactor = (diferencia: number): number => {
   if (diferencia <= 0) return FACTOR_CERCANIA[0];
   if (diferencia === 1) return FACTOR_CERCANIA[1];
   if (diferencia === 2) return FACTOR_CERCANIA[2];
   if (diferencia === 3) return FACTOR_CERCANIA[3];
-  return FACTOR_CERCANIA[4]; // 4 o más
+  return FACTOR_CERCANIA[4];
 };
 
-/**
- * Determina el tipo de acierto basado en pronóstico vs resultado
- */
 export const determinarTipoAcierto = (
   glProno: number,
   gvProno: number,
   glReal: number,
-  gvReal: number,
-  esEliminatoria: boolean
+  gvReal: number
 ): { tipo: TipoAcierto; hayPiso: "GANADOR" | "EMPATE" | null } => {
   const esEmpateReal = glReal === gvReal;
   const esEmpateProno = glProno === gvProno;
   const ganadorReal = glReal > gvReal ? "L" : "V";
   const ganadorProno = glProno > gvProno ? "L" : "V";
 
-  // Acierto exacto
+  // Acierto exacto (INCLUYE empates exactos: 1-1 → 1-1 = 3 pts)
   if (glProno === glReal && gvProno === gvReal) {
     return { tipo: "EXACTO", hayPiso: null };
   }
 
-  // Empate exacto
-  if (esEmpateProno && esEmpateReal && glProno === glReal) {
-    return { tipo: "EMPATE_EXACTO", hayPiso: "EMPATE" };
-  }
-
-  // Resultado exacto, equipos invertidos
+  // Resultado exacto, equipos invertidos (solo si no es empate)
   if (glProno === gvReal && gvProno === glReal && !esEmpateReal) {
     return { tipo: "INVERTIDO", hayPiso: null };
   }
 
-  // Ganador correcto
+  // Ganador correcto (incluye empates pronosticados cuando el real NO es empate)
   if (ganadorProno === ganadorReal && !esEmpateReal) {
     return { tipo: "GANADOR", hayPiso: "GANADOR" };
   }
 
-  // Empate cercano (pronosticó empate, salió empate pero con otro marcador)
+  // Empate pronosticado cuando el real también es empate (pero marcador diferente)
   if (esEmpateProno && esEmpateReal) {
     return { tipo: "EMPATE", hayPiso: "EMPATE" };
   }
 
   // Error total
-  return { tipo: "GANADOR", hayPiso: null }; // Tipo fallback para cálculo
+  return { tipo: "GANADOR", hayPiso: null };
 };
 
 // ============================================================================
-// MOTOR PRINCIPAL DE CÁLCULO
+// MOTOR PRINCIPAL DE CÁLCULO - CONSISTENTE
 // ============================================================================
 
-/**
- * Calcula los puntos de un solo partido
- * @returns Objeto con cálculo detallado para auditoría
- */
 export const calcularPuntosPartido = (
   partido: Partido,
   pronostico: Pronostico,
@@ -194,9 +159,9 @@ export const calcularPuntosPartido = (
     glProno,
     gvProno,
     glReal,
-    gvReal,
-    esEliminatoria
+    gvReal
   );
+
   const puntosBase = PUNTOS_BASE[partido.fase][tipo] || 0;
   const diferencia = calcularDiferencia(glProno, gvProno, glReal, gvReal);
   const factor = obtenerFactor(diferencia);
@@ -210,7 +175,7 @@ export const calcularPuntosPartido = (
     puntosRedondeados = PISO_MINIMO[hayPiso];
   }
 
-  // Calcular bonificaciones (solo para eliminatorias o grupos al final)
+  // Calcular bonificaciones
   const bonificaciones: ScoreCalculation["bonificaciones"] = [];
 
   // Bonificación de equipo clasificado (eliminatorias)
@@ -231,7 +196,6 @@ export const calcularPuntosPartido = (
 
     // Bonificaciones de penales (solo si aplica)
     if (glReal === gvReal) {
-      // Si el partido real fue a penales
       const pensPronoLocal = isValidScore(pronostico.penalesLocal)
         ? Number(pronostico.penalesLocal)
         : null;
@@ -317,43 +281,193 @@ export const calcularPuntosPartido = (
   };
 };
 
+// ============================================================================
+// BONIFICACIONES DE GRUPOS - IMPLEMENTADAS
+// ============================================================================
+
 /**
- * Calcula el puntaje total de un usuario para la Fase de Grupos
- * Incluye bonificaciones de equipos clasificados y orden exacto
+ * Calcula las bonificaciones de fase de grupos automáticamente
+ * Basado en los resultados reales de los partidos
  */
+const calcularBonificacionesGrupos = (
+  grupo: string,
+  partidosDelGrupo: Partido[],
+  pronosticos: Record<number, Pronostico>,
+  resultadosReales: Record<number, Pronostico>,
+  equiposDelGrupo: string[]
+): {
+  clasificados: { primero: string; segundo: string };
+  bonificaciones: number;
+} => {
+  // Calcular tabla real del grupo
+  const tabla: Record<string, { pts: number; dg: number; gf: number }> = {};
+  equiposDelGrupo.forEach((eq) => {
+    tabla[eq] = { pts: 0, dg: 0, gf: 0 };
+  });
+
+  partidosDelGrupo.forEach((partido) => {
+    const real = resultadosReales[partido.id];
+    if (!real || !isValidScore(real.local) || !isValidScore(real.visitante))
+      return;
+
+    const gl = Number(real.local);
+    const gv = Number(real.visitante);
+    const local = partido.equipoLocal!;
+    const visitante = partido.equipoVisitante!;
+
+    // Actualizar estadísticas
+    tabla[local].dg += gl - gv;
+    tabla[local].gf += gl;
+    tabla[visitante].dg += gv - gl;
+    tabla[visitante].gf += gv;
+
+    // Asignar puntos FIFA
+    if (gl > gv) {
+      tabla[local].pts += 3;
+    } else if (gv > gl) {
+      tabla[visitante].pts += 3;
+    } else {
+      tabla[local].pts += 1;
+      tabla[visitante].pts += 1;
+    }
+  });
+
+  // Ordenar por: 1) Puntos, 2) Diferencia de gol, 3) Goles a favor
+  const ordenados = Object.entries(tabla)
+    .sort(([, a], [, b]) => {
+      if (b.pts !== a.pts) return b.pts - a.pts;
+      if (b.dg !== a.dg) return b.dg - a.dg;
+      return b.gf - a.gf;
+    })
+    .map(([eq]) => eq);
+
+  const clasificados = {
+    primero: ordenados[0],
+    segundo: ordenados[1],
+  };
+
+  // Calcular bonificaciones para el usuario
+  let bonificaciones = 0;
+
+  // Para cada usuario, verificar sus pronósticos implícitos
+  // (un equipo "clasifica" en sus pronósticos si gana más partidos)
+  const pronosticosPorEquipo: Record<
+    string,
+    { victorias: number; empates: number }
+  > = {};
+  equiposDelGrupo.forEach((eq) => {
+    pronosticosPorEquipo[eq] = { victorias: 0, empates: 0 };
+  });
+
+  partidosDelGrupo.forEach((partido) => {
+    const prono = pronosticos[partido.id];
+    if (!prono || !isValidScore(prono.local) || !isValidScore(prono.visitante))
+      return;
+
+    const gl = Number(prono.local);
+    const gv = Number(prono.visitante);
+    const local = partido.equipoLocal!;
+    const visitante = partido.equipoVisitante!;
+
+    if (gl > gv) {
+      pronosticosPorEquipo[local].victorias++;
+    } else if (gv > gl) {
+      pronosticosPorEquipo[visitante].victorias++;
+    } else {
+      pronosticosPorEquipo[local].empates++;
+      pronosticosPorEquipo[visitante].empates++;
+    }
+  });
+
+  // Ordenar equipos por pronósticos del usuario
+  const ordenadosProno = Object.entries(pronosticosPorEquipo)
+    .sort(([, a], [, b]) => {
+      // Puntos implícitos: 3 por victoria, 1 por empate
+      const ptsA = a.victorias * 3 + a.empates;
+      const ptsB = b.victorias * 3 + b.empates;
+      return ptsB - ptsA;
+    })
+    .map(([eq]) => eq);
+
+  const clasificadosProno = {
+    primero: ordenadosProno[0],
+    segundo: ordenadosProno[1],
+  };
+
+  // +1 punto por cada clasificado acertado
+  if (clasificadosProno.primero === clasificados.primero) bonificaciones += 1;
+  if (clasificadosProno.segundo === clasificados.segundo) bonificaciones += 1;
+
+  // +2 puntos extras si acertó el orden exacto
+  if (
+    clasificadosProno.primero === clasificados.primero &&
+    clasificadosProno.segundo === clasificados.segundo
+  ) {
+    bonificaciones += 2;
+  }
+
+  return { clasificados, bonificaciones };
+};
+
+// ============================================================================
+// CÁLCULO DE PUNTAJE POR FASE
+// ============================================================================
+
 export const calcularPuntajeGrupos = (
   partidosGrupos: Partido[],
   pronosticos: Record<number, Pronostico>,
-  resultadosReales: Record<number, Pronostico>,
-  prediccionClasificados?: Record<string, { primero: string; segundo: string }> // Opcional: si se implementa UI para predecir clasificados
+  resultadosReales: Record<number, Pronostico>
 ): { total: number; desglose: ScoreCalculation[]; bonificaciones: number } => {
   let total = 0;
   const desglose: ScoreCalculation[] = [];
   let bonificacionesTotales = 0;
 
-  // Calcular puntos por partido
-  partidosGrupos.forEach((partido) => {
-    const calculo = calcularPuntosPartido(
-      partido,
-      pronosticos[partido.id] || {},
-      resultadosReales[partido.id] || {}
-    );
-    total += calculo.puntosFinales;
-    desglose.push(calculo);
+  // Agrupar partidos por grupo
+  const gruposMap: Record<string, Partido[]> = {};
+  partidosGrupos.forEach((p) => {
+    if (p.grupo) {
+      if (!gruposMap[p.grupo]) gruposMap[p.grupo] = [];
+      gruposMap[p.grupo].push(p);
+    }
   });
 
-  // Calcular bonificaciones de grupos (si hay predicción de clasificados)
-  if (prediccionClasificados) {
-    // Esta lógica se activará cuando se implemente la UI para predecir clasificados
-    // Por ahora, se calcula automáticamente basado en los pronósticos de partidos
-  }
+  // Calcular puntos por partido + bonificaciones por grupo
+  Object.entries(gruposMap).forEach(([grupo, partidosDelGrupo]) => {
+    // Puntos por partidos
+    partidosDelGrupo.forEach((partido) => {
+      const calculo = calcularPuntosPartido(
+        partido,
+        pronosticos[partido.id] || {},
+        resultadosReales[partido.id] || {}
+      );
+      total += calculo.puntosFinales;
+      desglose.push(calculo);
+    });
+
+    // Bonificaciones del grupo
+    const equiposDelGrupo = [
+      ...new Set(
+        partidosDelGrupo.flatMap(
+          (p) => [p.equipoLocal, p.equipoVisitante].filter(Boolean) as string[]
+        )
+      ),
+    ];
+
+    const { bonificaciones } = calcularBonificacionesGrupos(
+      grupo,
+      partidosDelGrupo,
+      pronosticos,
+      resultadosReales,
+      equiposDelGrupo
+    );
+
+    bonificacionesTotales += bonificaciones;
+    total += bonificaciones;
+  });
 
   return { total, desglose, bonificaciones: bonificacionesTotales };
 };
 
-/**
- * Calcula el puntaje total de un usuario para la Fase Eliminatoria
- */
 export const calcularPuntajeEliminatorias = (
   partidosEliminatorias: Partido[],
   pronosticos: Record<number, Pronostico>,
@@ -375,9 +489,10 @@ export const calcularPuntajeEliminatorias = (
   return { total, desglose };
 };
 
-/**
- * Calcula el puntaje TOTAL del usuario (Grupos + Eliminatorias)
- */
+// ============================================================================
+// CÁLCULO TOTAL Y RANKING - CONSISTENTE
+// ============================================================================
+
 export const calcularPuntajeTotal = (
   todosLosPartidos: Partido[],
   pronosticos: Record<number, Pronostico>,
@@ -413,14 +528,14 @@ export const calcularPuntajeTotal = (
     .reduce((sum, b) => sum + b.puntos, 0);
 
   return {
-    userId: "", // Se completa en el llamado
+    userId: "",
     username: "",
     puntajeGrupos: puntajeGrupos.total,
     puntajeEliminatorias: puntajeEliminatorias.total,
     puntajeTotal: puntajeGrupos.total + puntajeEliminatorias.total,
     aciertosExactos,
     bonificacionesPenales,
-    historial: [], // Se completa con evolución temporal
+    historial: [],
     desglose: {
       grupos: puntajeGrupos.desglose,
       eliminatorias: puntajeEliminatorias.desglose,
@@ -429,28 +544,16 @@ export const calcularPuntajeTotal = (
   };
 };
 
-/**
- * Genera el ranking de usuarios ordenado por puntaje total
- * Aplica criterios de desempate en orden:
- * 1. Mayor puntaje total
- * 2. Mayor puntaje en eliminatorias
- * 3. Mayor puntaje en la Final
- * 4. Más aciertos exactos
- * 5. Más bonificaciones de penales
- * 6. Empate mantenido
- */
 export const generarRanking = (
   scores: UserScore[],
   resultadosReales: Record<number, Pronostico>
 ): LeaderboardEntry[] => {
-  // Ordenar con criterios de desempate
   const ordenados = [...scores].sort((a, b) => {
     if (b.puntajeTotal !== a.puntajeTotal)
       return b.puntajeTotal - a.puntajeTotal;
     if (b.puntajeEliminatorias !== a.puntajeEliminatorias)
       return b.puntajeEliminatorias - a.puntajeEliminatorias;
 
-    // Comparar puntaje en la Final (partido 104)
     const finalA =
       a.desglose?.eliminatorias?.find((c) => c.matchId === 104)
         ?.puntosFinales || 0;
@@ -464,30 +567,21 @@ export const generarRanking = (
     if (b.bonificacionesPenales !== a.bonificacionesPenales)
       return b.bonificacionesPenales - a.bonificacionesPenales;
 
-    return 0; // Mantener empate
+    return 0;
   });
 
-  // Asignar posiciones
-  return ordenados.map((score, index) => {
-    // Manejar empates en posición
-    const posicion = index + 1;
-
-    return {
-      username: score.username,
-      lastCalculationDate: score.ultimaActualizacion,
-      scoreGroups: score.puntajeGrupos,
-      scoreKnockout: score.puntajeEliminatorias,
-      scoreTotal: score.puntajeTotal,
-      position: posicion,
-      aciertosExactos: score.aciertosExactos,
-      bonificacionesPenales: score.bonificacionesPenales,
-    };
-  });
+  return ordenados.map((score, index) => ({
+    username: score.username,
+    lastCalculationDate: score.ultimaActualizacion,
+    scoreGroups: score.puntajeGrupos,
+    scoreKnockout: score.puntajeEliminatorias,
+    scoreTotal: score.puntajeTotal,
+    position: index + 1,
+    aciertosExactos: score.aciertosExactos,
+    bonificacionesPenales: score.bonificacionesPenales,
+  }));
 };
 
-/**
- * Exporta el progreso de un usuario en formato CSV para descarga
- */
 export const exportarProgresoCSV = (score: UserScore): string => {
   const headers = [
     "Fecha",
@@ -498,7 +592,6 @@ export const exportarProgresoCSV = (score: UserScore): string => {
     "Posición",
   ];
 
-  // Generar filas históricas (simulado - en producción vendría de historial)
   const rows =
     score.historial.length > 0
       ? score.historial.map((h) =>
@@ -518,7 +611,7 @@ export const exportarProgresoCSV = (score: UserScore): string => {
             score.puntajeGrupos,
             score.puntajeEliminatorias,
             score.puntajeTotal,
-            "?", // Posición se calcula en el ranking global
+            "?",
           ].join(","),
         ];
 
