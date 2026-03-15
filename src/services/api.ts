@@ -2,7 +2,7 @@
  * URL del Web App de Google Apps Script.
  */
 const API_URL =
-  "https://script.google.com/macros/s/AKfycbwbaSnRoqEd-5YhrvDBqHR736IA0voyWSdwSQ9jXHUjRICka99C_8H5yjd7nLLCMwhS/exec";
+  "https://script.google.com/macros/s/AKfycbxq8KfJfOA92Jl8iFKLVZb8i5bCfutM_ja6VVVT_GpH8cxDr50C1qLtzu-gVjv1o3tC/exec";
 
 /**
  * Función centralizada para llamadas a la API de Google Apps Script.
