@@ -18,6 +18,7 @@ import {
   simularPenales,
   checkPensValidity,
 } from "../services/fifaLogic";
+import { exportarProgresoXLSX } from "../services/exportSystem";
 import {
   Users,
   Lock,
@@ -39,6 +40,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Flag,
+  Download,
 } from "lucide-react";
 
 interface Props {
@@ -209,9 +211,6 @@ const AdminPanel: React.FC<Props> = ({
     [tablaOficialAdmin]
   );
 
-  // --- DENTRO DE AdminPanel.tsx ---
-
-  // Reemplaza tu useMemo de llavesOficialesAdmin por este:
   const llavesOficialesAdmin = useMemo(() => {
     const datosAdmin = {
       posiciones: tablaOficialAdmin,
@@ -225,24 +224,6 @@ const AdminPanel: React.FC<Props> = ({
       true // Prioridad absoluta a los resultados oficiales del Admin
     );
   }, [tablaOficialAdmin, mejoresTercerosOficialAdmin, realScores]);
-
-  /**
-   * REGLA DE ORO PARA EL RESULTADO OFICIAL
-   
-  const checkPensValidity = (pl: any, pv: any) => {
-    if (!isValidScore(pl) || !isValidScore(pv)) return true;
-    const nA = parseInt(String(pl), 10);
-    const nB = parseInt(String(pv), 10);
-    if (nA === nB) return false;
-    const max = Math.max(nA, nB);
-    const min = Math.min(nA, nB);
-    const diff = max - min;
-    if (max <= 5) {
-      const validPairs = [[1,0],[2,0],[2,1],[3,0],[3,1],[3,2],[4,1],[4,2],[4,3],[5,3],[5,4]];
-      return validPairs.some(pair => pair[0] === max && pair[1] === min);
-    } 
-    return diff === 1;
-  };*/
 
   const handleUpdateRealScore = (
     id: number,
@@ -310,7 +291,6 @@ const AdminPanel: React.FC<Props> = ({
   };
 
   const saveRealResults = () => {
-    // 1. Iniciamos carga breve
     setIsLoading(true);
 
     const sanitized: Record<number, any> = {};
@@ -331,7 +311,7 @@ const AdminPanel: React.FC<Props> = ({
           penalesVisitante: valPV,
         };
 
-        // ACTUALIZACIÓN DIRECTA DE OBJETOS (Pedido del usuario)
+        // ACTUALIZACIÓN DIRECTA DE OBJETOS
         m.golesLocal = valL;
         m.golesVisitante = valV;
         m.penalesLocal = valPL;
@@ -339,18 +319,18 @@ const AdminPanel: React.FC<Props> = ({
       }
     });
 
-    // 2. ACTUALIZACIÓN DEL ESTADO GLOBAL (Para que VIVO refleje los cambios de inmediato)
+    // ACTUALIZACIÓN DEL ESTADO GLOBAL
     setGlobalRealScores((prev) => ({
       ...prev,
       ...sanitized,
     }));
 
-    // 3. DISPARAR AL SERVIDOR (Fire and forget)
+    // DISPARAR AL SERVIDOR (Fire and forget)
     api
       .adminSaveRealResults(currentUser.username, sanitized)
       .catch((e) => console.error(e));
 
-    // 4. LIBERAR UI
+    // LIBERAR UI
     setTimeout(() => {
       setIsLoading(false);
       toast(
@@ -389,6 +369,49 @@ const AdminPanel: React.FC<Props> = ({
       }
     } catch (err) {
       toast("Error al desbloquear", "error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // === NUEVA FUNCIÓN: Descargar progreso de cualquier usuario (solo Admin) ===
+  const handleDownloadUserProgress = async (
+    userId: string,
+    username: string
+  ) => {
+    setIsLoading(true);
+    try {
+      // Obtener pronósticos del usuario desde el backend
+      const userData = await api.getInitialData(userId);
+      if (!userData.success) {
+        toast("Error al obtener datos del usuario", "error");
+        return;
+      }
+
+      // Exportar a XLSX usando la misma función que el frontend
+      exportarProgresoXLSX(
+        username,
+        {
+          userId,
+          username,
+          puntajeGrupos: 0, // Se calcula en la función
+          puntajeEliminatorias: 0,
+          puntajeTotal: 0,
+          aciertosExactos: 0,
+          bonificacionesPenales: 0,
+          historial: [],
+          desglose: { grupos: [], eliminatorias: [] },
+          ultimaActualizacion: new Date().toISOString(),
+        },
+        allMatches,
+        userData.data.userPronos || {},
+        realScores
+      );
+
+      toast(`Progreso de @${username} descargado`, "success");
+    } catch (error) {
+      console.error("Error descargando progreso:", error);
+      toast("Error al descargar el progreso", "error");
     } finally {
       setIsLoading(false);
     }
@@ -628,6 +651,17 @@ const AdminPanel: React.FC<Props> = ({
                         )}
                       </td>
                       <td className="px-4 py-5 text-right flex justify-end gap-2">
+                        {/* Botón de descarga de progreso (solo Admin) */}
+                        <button
+                          onClick={() =>
+                            handleDownloadUserProgress(u.id, u.username)
+                          }
+                          className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-emerald-400 transition-colors"
+                          title="Descargar progreso de este usuario en Excel"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+
                         {u.isFrozen && (
                           <button
                             onClick={() => unfreezeUser(u.id)}
