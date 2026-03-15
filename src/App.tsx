@@ -341,60 +341,29 @@ const App: React.FC = () => {
     );
   }, [tablaOficial, mejoresTercerosOficiales, realScores]);
 
-  // === FUNCIÓN PARA CARGAR LEADERBOARD DESDE FRONTEND ===
+  // === FUNCIÓN PARA CARGAR LEADERBOARD DESDE BACKEND ===
   const cargarLeaderboard = useCallback(async () => {
     setIsLoading(true);
     try {
-      // 1. Obtener lista de todos los usuarios activos
-      const usersRes = await api.adminGetUsers(user?.username || "");
-      if (!usersRes.success) throw new Error("No se pudieron obtener usuarios");
-
-      const usuariosActivos = usersRes.data.filter((u: Usuario) => u.activo);
-
-      // 2. Calcular puntaje para CADA usuario usando scoringSystem.ts
-      const todosLosPartidos = [...PARTIDOS_INICIALES, ...llaves];
-      const scoresCalculados: UserScore[] = [];
-
-      for (const u of usuariosActivos) {
-        // Obtener pronósticos de este usuario desde el backend
-        const userData = await api.getInitialData(u.id);
-        if (!userData.success) continue;
-
-        // Calcular puntaje con lógica actualizada (MISMA que Excel)
-        const score = calcularPuntajeTotal(
-          todosLosPartidos,
-          userData.data.userPronos || {},
-          realScores
-        );
-        score.userId = u.id;
-        score.username = u.username;
-        scoresCalculados.push(score);
+      // Solo leer scores ya calculados del backend
+      const res = await api.getAllScores();
+      if (res.success && res.data?.scores) {
+        setUserScores(res.data.scores);
       }
-
-      // 3. Actualizar estado con puntajes calculados en frontend
-      setUserScores(scoresCalculados);
     } catch (error) {
-      console.error("Error calculando leaderboard:", error);
-      // Fallback: intentar con backend si falla el cálculo local
-      try {
-        const res = await api.getAllScores();
-        if (res.success && res.data?.scores) {
-          setUserScores(res.data.scores);
-        }
-      } catch (e) {
-        console.error("Fallback también falló:", e);
-      }
+      console.error("Error cargando leaderboard:", error);
+      toast("Error al cargar ranking", "error");
     } finally {
       setIsLoading(false);
     }
-  }, [user, realScores, llaves]);
+  }, [toast]); // Solo toast como dependencia
 
   // Ejecutar cuando se abre la pestaña ranking
   useEffect(() => {
     if (activeTab === "ranking") {
       cargarLeaderboard();
     }
-  }, [activeTab, cargarLeaderboard]);
+  }, [activeTab]);
 
   const actMatch = useCallback(
     (id: number, l: any, v: any, pl?: any, pv?: any) => {
