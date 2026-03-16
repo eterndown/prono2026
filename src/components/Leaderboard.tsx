@@ -26,7 +26,6 @@ interface LeaderboardProps {
   allScores: UserScore[];
   realScores: Record<number, any>;
   onRefresh?: () => void;
-  // Props necesarios para exportación XLSX
   todosLosPartidos?: Partido[];
   pronosticos?: Record<number, Pronostico>;
 }
@@ -91,7 +90,6 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
         return multiplier * (a.position - b.position);
       }
 
-      // Para puntajes: mayor es mejor, pero respetamos dirección
       const aVal = a[key as keyof LeaderboardEntry] as number;
       const bVal = b[key as keyof LeaderboardEntry] as number;
 
@@ -104,10 +102,8 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
   const requestSort = (key: SortKey) => {
     setSortConfig((prev) => {
       if (prev.key === key) {
-        // Cambiar dirección si ya está ordenado por esta columna
         return { key, direction: prev.direction === "asc" ? "desc" : "asc" };
       }
-      // Nueva columna: desc por defecto para puntajes, asc para username
       const defaultDirection = key === "username" ? "asc" : "desc";
       return { key, direction: defaultDirection };
     });
@@ -115,12 +111,8 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
 
   // Descargar progreso de usuario en XLSX - CORREGIDO
   const handleDownload = async (username: string) => {
-    // Buscar el UserScore completo por username para obtener userId
     const userScore = allScores.find((s) => s.username === username);
-    if (!userScore) {
-      console.error(`Usuario ${username} no encontrado en allScores`);
-      return;
-    }
+    if (!userScore) return;
 
     setIsLoading(true);
     try {
@@ -128,10 +120,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
       const userData = await api.getInitialData(userScore.userId);
 
       if (!userData.success) {
-        console.error(
-          `Error al obtener datos de ${username}:`,
-          userData.message
-        );
+        console.error("Error al obtener datos del usuario");
         return;
       }
 
@@ -144,7 +133,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
         username,
         userScore,
         partidos,
-        userPronosticos, // ← AHORA usa pronósticos del usuario específico
+        userPronosticos,
         realScores
       );
     } catch (error) {
