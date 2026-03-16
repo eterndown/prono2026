@@ -16,8 +16,10 @@ import {
   Search,
   ArrowUpDown,
   FileText,
+  Loader2,
 } from "lucide-react";
 import { PARTIDOS_INICIALES } from "../constants";
+import { api } from "../services/api";
 
 interface LeaderboardProps {
   currentUser: { id: string; username: string } | null;
@@ -111,22 +113,45 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
     });
   };
 
-  // Descargar progreso de usuario en XLSX
-  const handleDownload = (username: string) => {
+  // Descargar progreso de usuario en XLSX - CORREGIDO
+  const handleDownload = async (username: string) => {
+    // Buscar el UserScore completo por username para obtener userId
     const userScore = allScores.find((s) => s.username === username);
-    if (!userScore) return;
+    if (!userScore) {
+      console.error(`Usuario ${username} no encontrado en allScores`);
+      return;
+    }
 
-    // Usar partidos combinados si no se pasan como prop
-    const partidos =
-      todosLosPartidos.length > 0 ? todosLosPartidos : PARTIDOS_INICIALES;
+    setIsLoading(true);
+    try {
+      // Obtener pronósticos ESPECÍFICOS de este usuario desde el backend
+      const userData = await api.getInitialData(userScore.userId);
 
-    exportarProgresoXLSX(
-      username,
-      userScore,
-      partidos,
-      pronosticos,
-      realScores
-    );
+      if (!userData.success) {
+        console.error(
+          `Error al obtener datos de ${username}:`,
+          userData.message
+        );
+        return;
+      }
+
+      const userPronosticos = userData.data.userPronos || {};
+      const partidos =
+        todosLosPartidos.length > 0 ? todosLosPartidos : PARTIDOS_INICIALES;
+
+      // Exportar con los pronósticos CORRECTOS del usuario
+      exportarProgresoXLSX(
+        username,
+        userScore,
+        partidos,
+        userPronosticos, // ← AHORA usa pronósticos del usuario específico
+        realScores
+      );
+    } catch (error) {
+      console.error("Error descargando progreso:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Exportar ranking completo a PDF
@@ -231,9 +256,14 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
           </div>
           <button
             onClick={() => handleDownload(currentUserEntry.username)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-lg text-[10px] font-black uppercase transition-all"
+            disabled={isLoading}
+            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-lg text-[10px] font-black uppercase transition-all disabled:opacity-50"
           >
-            <Download className="w-3 h-3" />
+            {isLoading ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Download className="w-3 h-3" />
+            )}
             Mi Progreso (.xlsx)
           </button>
         </div>
@@ -381,13 +411,28 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
                       {entry.scoreTotal}
                     </td>
                     <td className="px-4 py-4 text-right">
-                      <button
-                        onClick={() => handleDownload(entry.username)}
-                        className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-emerald-400 transition-colors"
-                        title="Descargar progreso en Excel"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
+                      {/* Solo el usuario actual puede descargar su progreso */}
+                      {isCurrentUser ? (
+                        <button
+                          onClick={() => handleDownload(entry.username)}
+                          disabled={isLoading}
+                          className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-emerald-400 transition-colors disabled:opacity-50"
+                          title="Descargar tu progreso en Excel"
+                        >
+                          {isLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Download className="w-4 h-4" />
+                          )}
+                        </button>
+                      ) : (
+                        <span
+                          className="text-zinc-700 text-[10px]"
+                          title="Solo tu propio progreso"
+                        >
+                          —
+                        </span>
+                      )}
                     </td>
                   </tr>
                 );
