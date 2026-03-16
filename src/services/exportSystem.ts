@@ -1,12 +1,15 @@
 /**
  * SISTEMA DE EXPORTACIÓN - PRONO2026
  * Exporta progreso de usuarios a XLSX y Ranking a PDF
+ *
+ * IMPORTANTE: Este módulo usa los valores de userScore para garantizar
+ * consistencia con el Ranking y el backend.
  */
 
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { UserScore, Partido, Pronostico } from "../types";
+import { UserScore, Partido, Pronostico, ScoreCalculation } from "../types";
 import { PARTIDOS_INICIALES, EQUIPOS } from "../constants";
 import { calcularPuntosPartido } from "./scoringSystem";
 
@@ -39,6 +42,9 @@ export interface ExportRow {
 /**
  * Genera el archivo XLSX con el progreso detallado de un usuario
  * 105 filas: 1 header + 104 partidos
+ *
+ * IMPORTANTE: Usa userScore.desglose si está disponible para garantizar
+ * consistencia con el backend. Si no, calcula en tiempo real.
  */
 export const exportarProgresoXLSX = (
   username: string,
@@ -63,19 +69,34 @@ export const exportarProgresoXLSX = (
       penalesVisitante: null,
     };
 
-    // Calcular puntos del partido
-    const calculo = calcularPuntosPartido(partido, pronostico, real);
+    // === PRIORIDAD 1: Usar cálculo existente del desglose del usuario ===
+    let calculo: ScoreCalculation | undefined;
+
+    if (userScore.desglose?.grupos) {
+      calculo = userScore.desglose.grupos.find((c) => c.matchId === partido.id);
+    }
+    if (!calculo && userScore.desglose?.eliminatorias) {
+      calculo = userScore.desglose.eliminatorias.find(
+        (c) => c.matchId === partido.id
+      );
+    }
+
+    // === PRIORIDAD 2: Fallback - calcular en tiempo real si no existe ===
+    if (!calculo) {
+      calculo = calcularPuntosPartido(partido, pronostico, real);
+    }
 
     // Extraer bonificaciones
     const bonifClasificado =
-      calculo.bonificaciones.find((b) => b.tipo === "CLASIFICADO")?.puntos || 0;
+      calculo.bonificaciones?.find((b) => b.tipo === "CLASIFICADO")?.puntos ||
+      0;
     const bonifPenales =
-      calculo.bonificaciones.find((b) => b.tipo === "PENALES")?.puntos || 0;
+      calculo.bonificaciones?.find((b) => b.tipo === "PENALES")?.puntos || 0;
     const bonifGanadorPenales =
-      calculo.bonificaciones.find((b) => b.tipo === "GANADOR_PENALES")
+      calculo.bonificaciones?.find((b) => b.tipo === "GANADOR_PENALES")
         ?.puntos || 0;
     const bonifCampeon =
-      calculo.bonificaciones.find((b) => b.tipo === "CAMPEON")?.puntos || 0;
+      calculo.bonificaciones?.find((b) => b.tipo === "CAMPEON")?.puntos || 0;
 
     // Obtener nombres de equipos
     const equipoA = partido.equipoLocal || partido.placeholderLocal || "TBD";
@@ -163,7 +184,7 @@ export const exportarProgresoXLSX = (
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, "Progreso");
 
-  // Agregar hoja de resumen
+  // === HOJA DE RESUMEN: USAR VALORES DE userScore PARA CONSISTENCIA ===
   const resumenData = [
     ["RESUMEN DE PUNTAJE"],
     ["Usuario", username],
@@ -261,7 +282,7 @@ export const exportarRankingPDF = (ranking: LeaderboardEntry[]) => {
     },
   });
 
-  // Footer - CORREGIDO: usar (doc as any).internal.pages.length
+  // Footer
   const pageCount = (doc as any).internal.pages.length;
   for (let i = 1; i <= pageCount; i++) {
     doc.setPage(i);
