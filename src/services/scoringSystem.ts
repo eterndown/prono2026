@@ -1,11 +1,6 @@
 /**
  * SISTEMA DE PUNTUACIÓN OFICIAL - PRONO2026
  * Versión: 1.2.0 | Corrección: errores totales = 0 puntos
- *
- * Principios:
- * - Justicia: Reglas claras, aplicadas consistentemente
- * - Diversión: Múltiples formas de sumar, nunca cero si hay acierto parcial
- * - Transparencia: Cada cálculo queda registrado y auditable
  */
 
 import {
@@ -33,11 +28,11 @@ export const PUNTOS_BASE: Record<Fase, Record<TipoAcierto, number>> = {
 };
 
 export const FACTOR_CERCANIA: Record<number, number> = {
-  0: 1.0, // Exacto
-  1: 0.8, // Muy cercano
-  2: 0.6, // Cercano
-  3: 0.4, // Algo lejano
-  4: 0.2, // Piso mínimo (4 o más)
+  0: 1.0,
+  1: 0.8,
+  2: 0.6,
+  3: 0.4,
+  4: 0.2,
 };
 
 export const PISO_MINIMO: Record<"GANADOR" | "EMPATE", number> = {
@@ -78,34 +73,38 @@ export const determinarTipoAcierto = (
   gvProno: number,
   glReal: number,
   gvReal: number
-): { tipo: TipoAcierto; hayPiso: "GANADOR" | "EMPATE" | null } => {
+): {
+  tipo: TipoAcierto;
+  hayPiso: "GANADOR" | "EMPATE" | null;
+  esErrorTotal: boolean;
+} => {
   const esEmpateReal = glReal === gvReal;
   const esEmpateProno = glProno === gvProno;
   const ganadorReal = glReal > gvReal ? "L" : "V";
   const ganadorProno = glProno > gvProno ? "L" : "V";
 
-  // Acierto exacto (INCLUYE empates exactos: 1-1 → 1-1 = 3 pts)
+  // Acierto exacto
   if (glProno === glReal && gvProno === gvReal) {
-    return { tipo: "EXACTO", hayPiso: null };
+    return { tipo: "EXACTO", hayPiso: null, esErrorTotal: false };
   }
 
-  // Resultado exacto, equipos invertidos (solo si no es empate)
+  // Equipos invertidos
   if (glProno === gvReal && gvProno === glReal && !esEmpateReal) {
-    return { tipo: "INVERTIDO", hayPiso: null };
+    return { tipo: "INVERTIDO", hayPiso: null, esErrorTotal: false };
   }
 
-  // Ganador correcto (incluye empates pronosticados cuando el real NO es empate)
+  // Ganador correcto
   if (ganadorProno === ganadorReal && !esEmpateReal) {
-    return { tipo: "GANADOR", hayPiso: "GANADOR" };
+    return { tipo: "GANADOR", hayPiso: "GANADOR", esErrorTotal: false };
   }
 
-  // Empate pronosticado cuando el real también es empate (pero marcador diferente)
+  // Empate pronosticado cuando el real también es empate
   if (esEmpateProno && esEmpateReal) {
-    return { tipo: "EMPATE", hayPiso: "EMPATE" };
+    return { tipo: "EMPATE", hayPiso: "EMPATE", esErrorTotal: false };
   }
 
-  // Error total: retornar tipo especial que no aplica piso
-  return { tipo: "GANADOR", hayPiso: null };
+  // ERROR TOTAL: no acertó nada
+  return { tipo: "GANADOR", hayPiso: null, esErrorTotal: true };
 };
 
 // ============================================================================
@@ -130,7 +129,7 @@ export const calcularPuntosPartido = (
     ? Number(resultadoReal.visitante)
     : null;
 
-  // Si no hay resultado real aún, no se puede calcular
+  // Si no hay resultado real aún
   if (glReal === null || gvReal === null) {
     return {
       matchId: partido.id,
@@ -142,7 +141,7 @@ export const calcularPuntosPartido = (
     };
   }
 
-  // Si no hay pronóstico, 0 puntos
+  // Si no hay pronóstico
   if (glProno === null || gvProno === null) {
     return {
       matchId: partido.id,
@@ -155,7 +154,7 @@ export const calcularPuntosPartido = (
   }
 
   const esEliminatoria = partido.fase !== "Grupos";
-  const { tipo, hayPiso } = determinarTipoAcierto(
+  const { tipo, hayPiso, esErrorTotal } = determinarTipoAcierto(
     glProno,
     gvProno,
     glReal,
@@ -166,20 +165,18 @@ export const calcularPuntosPartido = (
   const diferencia = calcularDiferencia(glProno, gvProno, glReal, gvReal);
   const factor = obtenerFactor(diferencia);
 
-  // Cálculo base con redondeo estándar
+  // Cálculo base
   let puntosCalculados = puntosBase * factor;
   let puntosRedondeados = Math.round(puntosCalculados);
 
   // === CORRECCIÓN CRÍTICA ===
-  // Aplicar piso mínimo SOLO si hayPiso está definido
-  if (hayPiso && puntosRedondeados < PISO_MINIMO[hayPiso]) {
+  // Si es ERROR TOTAL, forzar 0 puntos (sin redondeo)
+  if (esErrorTotal) {
+    puntosRedondeados = 0;
+  }
+  // Si no es error total pero hay piso, aplicar piso mínimo
+  else if (hayPiso && puntosRedondeados < PISO_MINIMO[hayPiso]) {
     puntosRedondeados = PISO_MINIMO[hayPiso];
-  } else if (!hayPiso) {
-    // Si es error total (hayPiso === null), forzar 0 puntos
-    // Esto evita que Math.round(0.6) = 1 en errores totales
-    if (puntosCalculados < 1) {
-      puntosRedondeados = 0;
-    }
   }
 
   // Calcular bonificaciones
@@ -201,7 +198,7 @@ export const calcularPuntosPartido = (
       puntosRedondeados += 3;
     }
 
-    // Bonificaciones de penales (solo si aplica)
+    // Bonificaciones de penales
     if (glReal === gvReal) {
       const pensPronoLocal = isValidScore(pronostico.penalesLocal)
         ? Number(pronostico.penalesLocal)
@@ -216,7 +213,6 @@ export const calcularPuntosPartido = (
         ? Number(resultadoReal.penalesVisitante)
         : null;
 
-      // +2 por acertar que hay penales
       if (pensPronoLocal !== null && pensPronoVisit !== null) {
         bonificaciones.push({
           tipo: "PENALES",
@@ -225,7 +221,6 @@ export const calcularPuntosPartido = (
         });
         puntosRedondeados += 2;
 
-        // +3 por acertar ganador en penales
         if (pensRealLocal !== null && pensRealVisit !== null) {
           const ganadorPensProno =
             pensPronoLocal > pensPronoVisit
@@ -302,7 +297,6 @@ const calcularBonificacionesGrupos = (
   clasificados: { primero: string; segundo: string };
   bonificaciones: number;
 } => {
-  // Calcular tabla real del grupo
   const tabla: Record<string, { pts: number; dg: number; gf: number }> = {};
   equiposDelGrupo.forEach((eq) => {
     tabla[eq] = { pts: 0, dg: 0, gf: 0 };
@@ -346,7 +340,6 @@ const calcularBonificacionesGrupos = (
     segundo: ordenados[1],
   };
 
-  // Calcular bonificaciones para el usuario
   let bonificaciones = 0;
 
   const pronosticosPorEquipo: Record<
