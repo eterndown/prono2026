@@ -1,6 +1,6 @@
 /**
  * SISTEMA DE PUNTUACIÓN OFICIAL - PRONO2026
- * Versión: 1.1.0 | Compatible con 104 partidos (72 grupos + 32 eliminatorias)
+ * Versión: 1.2.0 | Corrección: errores totales = 0 puntos
  *
  * Principios:
  * - Justicia: Reglas claras, aplicadas consistentemente
@@ -19,7 +19,7 @@ import {
 } from "../types";
 
 // ============================================================================
-// CONFIGURACIÓN BASE - CORREGIDA
+// CONFIGURACIÓN BASE
 // ============================================================================
 
 export const PUNTOS_BASE: Record<Fase, Record<TipoAcierto, number>> = {
@@ -104,12 +104,12 @@ export const determinarTipoAcierto = (
     return { tipo: "EMPATE", hayPiso: "EMPATE" };
   }
 
-  // Error total
+  // Error total: retornar tipo especial que no aplica piso
   return { tipo: "GANADOR", hayPiso: null };
 };
 
 // ============================================================================
-// MOTOR PRINCIPAL DE CÁLCULO - CONSISTENTE
+// MOTOR PRINCIPAL DE CÁLCULO - CORREGIDO
 // ============================================================================
 
 export const calcularPuntosPartido = (
@@ -170,9 +170,16 @@ export const calcularPuntosPartido = (
   let puntosCalculados = puntosBase * factor;
   let puntosRedondeados = Math.round(puntosCalculados);
 
-  // Aplicar piso mínimo si corresponde
+  // === CORRECCIÓN CRÍTICA ===
+  // Aplicar piso mínimo SOLO si hayPiso está definido
   if (hayPiso && puntosRedondeados < PISO_MINIMO[hayPiso]) {
     puntosRedondeados = PISO_MINIMO[hayPiso];
+  } else if (!hayPiso) {
+    // Si es error total (hayPiso === null), forzar 0 puntos
+    // Esto evita que Math.round(0.6) = 1 en errores totales
+    if (puntosCalculados < 1) {
+      puntosRedondeados = 0;
+    }
   }
 
   // Calcular bonificaciones
@@ -282,13 +289,9 @@ export const calcularPuntosPartido = (
 };
 
 // ============================================================================
-// BONIFICACIONES DE GRUPOS - IMPLEMENTADAS
+// BONIFICACIONES DE GRUPOS
 // ============================================================================
 
-/**
- * Calcula las bonificaciones de fase de grupos automáticamente
- * Basado en los resultados reales de los partidos
- */
 const calcularBonificacionesGrupos = (
   grupo: string,
   partidosDelGrupo: Partido[],
@@ -315,13 +318,11 @@ const calcularBonificacionesGrupos = (
     const local = partido.equipoLocal!;
     const visitante = partido.equipoVisitante!;
 
-    // Actualizar estadísticas
     tabla[local].dg += gl - gv;
     tabla[local].gf += gl;
     tabla[visitante].dg += gv - gl;
     tabla[visitante].gf += gv;
 
-    // Asignar puntos FIFA
     if (gl > gv) {
       tabla[local].pts += 3;
     } else if (gv > gl) {
@@ -332,7 +333,6 @@ const calcularBonificacionesGrupos = (
     }
   });
 
-  // Ordenar por: 1) Puntos, 2) Diferencia de gol, 3) Goles a favor
   const ordenados = Object.entries(tabla)
     .sort(([, a], [, b]) => {
       if (b.pts !== a.pts) return b.pts - a.pts;
@@ -349,8 +349,6 @@ const calcularBonificacionesGrupos = (
   // Calcular bonificaciones para el usuario
   let bonificaciones = 0;
 
-  // Para cada usuario, verificar sus pronósticos implícitos
-  // (un equipo "clasifica" en sus pronósticos si gana más partidos)
   const pronosticosPorEquipo: Record<
     string,
     { victorias: number; empates: number }
@@ -379,10 +377,8 @@ const calcularBonificacionesGrupos = (
     }
   });
 
-  // Ordenar equipos por pronósticos del usuario
   const ordenadosProno = Object.entries(pronosticosPorEquipo)
     .sort(([, a], [, b]) => {
-      // Puntos implícitos: 3 por victoria, 1 por empate
       const ptsA = a.victorias * 3 + a.empates;
       const ptsB = b.victorias * 3 + b.empates;
       return ptsB - ptsA;
@@ -394,11 +390,9 @@ const calcularBonificacionesGrupos = (
     segundo: ordenadosProno[1],
   };
 
-  // +1 punto por cada clasificado acertado
   if (clasificadosProno.primero === clasificados.primero) bonificaciones += 1;
   if (clasificadosProno.segundo === clasificados.segundo) bonificaciones += 1;
 
-  // +2 puntos extras si acertó el orden exacto
   if (
     clasificadosProno.primero === clasificados.primero &&
     clasificadosProno.segundo === clasificados.segundo
@@ -422,7 +416,6 @@ export const calcularPuntajeGrupos = (
   const desglose: ScoreCalculation[] = [];
   let bonificacionesTotales = 0;
 
-  // Agrupar partidos por grupo
   const gruposMap: Record<string, Partido[]> = {};
   partidosGrupos.forEach((p) => {
     if (p.grupo) {
@@ -431,9 +424,7 @@ export const calcularPuntajeGrupos = (
     }
   });
 
-  // Calcular puntos por partido + bonificaciones por grupo
   Object.entries(gruposMap).forEach(([grupo, partidosDelGrupo]) => {
-    // Puntos por partidos
     partidosDelGrupo.forEach((partido) => {
       const calculo = calcularPuntosPartido(
         partido,
@@ -444,7 +435,6 @@ export const calcularPuntajeGrupos = (
       desglose.push(calculo);
     });
 
-    // Bonificaciones del grupo
     const equiposDelGrupo = [
       ...new Set(
         partidosDelGrupo.flatMap(
@@ -490,7 +480,7 @@ export const calcularPuntajeEliminatorias = (
 };
 
 // ============================================================================
-// CÁLCULO TOTAL Y RANKING - CONSISTENTE
+// CÁLCULO TOTAL Y RANKING
 // ============================================================================
 
 export const calcularPuntajeTotal = (
@@ -512,13 +502,11 @@ export const calcularPuntajeTotal = (
     resultadosReales
   );
 
-  // Contar aciertos exactos para criterios de desempate
   const aciertosExactos = [
     ...puntajeGrupos.desglose,
     ...puntajeEliminatorias.desglose,
   ].filter((c) => c.tipoAcierto === "EXACTO").length;
 
-  // Sumar bonificaciones de penales para criterios de desempate
   const bonificacionesPenales = [
     ...puntajeGrupos.desglose,
     ...puntajeEliminatorias.desglose,
