@@ -10,7 +10,7 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { UserScore, Partido, Pronostico, ScoreCalculation } from "../types";
-import { PARTIDOS_INICIALES, EQUIPOS } from "../constants";
+import { PARTIDOS_INICIALES, EQUIPOS, GRUPOS } from "../constants";
 import { calcularPuntosPartido } from "./scoringSystem";
 
 // ============================================================================
@@ -153,6 +153,54 @@ export const exportarProgresoXLSX = (
     filas.push(fila);
   });
 
+  // Agregar fila de totales
+  const totalPuntosPartido = filas.reduce(
+    (sum, fila) => sum + fila.PuntosPartido,
+    0
+  );
+  const totalBonifClasificado = filas.reduce(
+    (sum, fila) => sum + fila.BonificacionClasificado,
+    0
+  );
+  const totalBonifPenales = filas.reduce(
+    (sum, fila) => sum + fila.BonificacionPenales,
+    0
+  );
+  const totalBonifGanadorPenales = filas.reduce(
+    (sum, fila) => sum + fila.BonificacionGanadorPenales,
+    0
+  );
+  const totalBonifCampeon = filas.reduce(
+    (sum, fila) => sum + fila.BonificacionCampeon,
+    0
+  );
+  const totalPuntosTotalesFila = filas.reduce(
+    (sum, fila) => sum + fila.PuntosTotalesFila,
+    0
+  );
+
+  filas.push({
+    Usuario: "",
+    MatchID: 0,
+    Fase: "TOTAL",
+    EquipoA: "",
+    PronosticoA: "",
+    PronosticoB: "",
+    EquipoB: "",
+    ResultadoRealA: "",
+    ResultadoRealB: "",
+    PenalesPronosticoA: "",
+    PenalesPronosticoB: "",
+    PenalesRealA: "",
+    PenalesRealB: "",
+    PuntosPartido: totalPuntosPartido,
+    BonificacionClasificado: totalBonifClasificado,
+    BonificacionPenales: totalBonifPenales,
+    BonificacionGanadorPenales: totalBonifGanadorPenales,
+    BonificacionCampeon: totalBonifCampeon,
+    PuntosTotalesFila: totalPuntosTotalesFila,
+  });
+
   // Crear worksheet
   const worksheet = XLSX.utils.json_to_sheet(filas);
 
@@ -194,6 +242,25 @@ export const exportarProgresoXLSX = (
     ["Aciertos Exactos", userScore.aciertosExactos],
     ["Bonificaciones Penales", userScore.bonificacionesPenales],
     ["Fecha de Exportación", new Date().toLocaleString("es-AR")],
+    ["", ""],
+    ["DESGLOSE DE BONIFICACIONES:"],
+    ["Bonificación Clasificados", totalBonifClasificado],
+    ["Bonificación Penales", totalBonifPenales],
+    ["Bonificación Ganador Penales", totalBonifGanadorPenales],
+    ["Bonificación Campeón", totalBonifCampeon],
+    ["", ""],
+    ["VERIFICACIÓN:"],
+    ["Suma PuntosPartido", totalPuntosPartido],
+    [
+      "Suma Bonificaciones",
+      totalBonifClasificado +
+        totalBonifPenales +
+        totalBonifGanadorPenales +
+        totalBonifCampeon,
+    ],
+    ["Total Calculado", totalPuntosTotalesFila],
+    ["Total Backend", userScore.puntajeTotal],
+    ["Diferencia", userScore.puntajeTotal - totalPuntosTotalesFila],
   ];
   const resumenSheet = XLSX.utils.aoa_to_sheet(resumenData);
   XLSX.utils.book_append_sheet(workbook, resumenSheet, "Resumen");
