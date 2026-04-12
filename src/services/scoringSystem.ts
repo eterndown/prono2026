@@ -529,7 +529,12 @@ export const generarRanking = (
   scores: UserScore[],
   resultadosReales: Record<number, Pronostico>
 ): LeaderboardEntry[] => {
-  const ordenados = [...scores].sort((a, b) => {
+  // === CORRECCIÓN CRÍTICA: Filtrar usuarios únicos por userId ===
+  const uniqueScores = scores.filter((score, index, self) => 
+    index === self.findIndex((s) => s.userId === score.userId)
+  );
+  
+  const ordenados = [...uniqueScores].sort((a, b) => {
     if (b.puntajeTotal !== a.puntajeTotal)
       return b.puntajeTotal - a.puntajeTotal;
     if (b.puntajeEliminatorias !== a.puntajeEliminatorias)

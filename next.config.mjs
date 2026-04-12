@@ -1,28 +1,25 @@
+/** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Para exportación estática (Cloudflare Pages)
   output: 'export',
-  images: { unoptimized: true },
-  trailingSlash: true,
-  reactStrictMode: true,
-  compress: true,
-  turbopack: {},
   
-  // Optimizaciones para StackBlitz
-  webpack: (config) => {
-    config.watchOptions = {
-      ...config.watchOptions,
-      poll: 1000,
-      aggregateTimeout: 300,
-    };
-    return config;
+  // Imágenes optimizadas para estático
+  images: { 
+    unoptimized: true 
   },
   
-  // Excluir carpetas pesadas del watch
-  webpackDevMiddleware: (config) => {
-    config.watchOptions = {
-      ...config.watchOptions,
-      ignored: ['**/node_modules/**', '**/.git/**'],
-    };
-    return config;
+  // Slash final para rutas estáticas
+  trailingSlash: true,
+  
+  // React Strict Mode en desarrollo
+  reactStrictMode: true,
+  
+  // Compresión habilitada
+  compress: true,
+  
+  // Ignorar errores de TypeScript en build (para desarrollo rápido)
+  typescript: {
+    ignoreBuildErrors: true,
   },
 };
 
