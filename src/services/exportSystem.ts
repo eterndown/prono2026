@@ -11,7 +11,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { UserScore, Partido, Pronostico, ScoreCalculation } from "../types";
 import { PARTIDOS_INICIALES, EQUIPOS, GRUPOS } from "../constants";
-import { calcularPuntosPartido } from "./scoringSystem";
+import { calcularPuntosPartido, calcularBonificacionesGrupos } from "./scoringSystem";
 
 // ============================================================================
 // EXPORTAR PROGRESO DE USUARIO A XLSX
@@ -19,7 +19,7 @@ import { calcularPuntosPartido } from "./scoringSystem";
 
 export interface ExportRow {
   Usuario: string;
-  MatchID: number;
+  MatchID: number | string;
   Fase: string;
   EquipoA: string;
   PronosticoA: string;
@@ -41,7 +41,7 @@ export interface ExportRow {
 
 /**
  * Genera el archivo XLSX con el progreso detallado de un usuario
- * 105 filas: 1 header + 104 partidos
+ * 105+ filas: 1 header + 104 partidos + bonificaciones de grupos
  *
  * IMPORTANTE: Usa userScore.desglose si está disponible para garantizar
  * consistencia con el backend. Si no, calcula en tiempo real.
@@ -55,7 +55,145 @@ export const exportarProgresoXLSX = (
 ) => {
   const filas: ExportRow[] = [];
 
-  todosLosPartidos.forEach((partido) => {
+  // Agrupar partidos por grupo para calcular bonificaciones
+  const gruposMap: Record<string, Partido[]> = {};
+  todosLosPartidos.forEach((p) => {
+    if (p.grupo) {
+      if (!gruposMap[p.grupo]) gruposMap[p.grupo] = [];
+      gruposMap[p.grupo].push(p);
+    }
+  });
+
+  // Procesar partidos fase de grupos + bonificaciones por grupo
+  Object.entries(gruposMap).forEach(([grupo, partidosDelGrupo]) => {
+    // 1. Agregar filas de partidos
+    partidosDelGrupo.forEach((partido) => {
+      const pronostico = pronosticos[partido.id] || {
+        local: "-",
+        visitante: "-",
+        penalesLocal: "-",
+        penalesVisitante: "-",
+      };
+      const real = resultadosReales[partido.id] || {
+        local: null,
+        visitante: null,
+        penalesLocal: null,
+        penalesVisitante: null,
+      };
+
+      let calculo: ScoreCalculation | undefined;
+      if (userScore.desglose?.grupos) {
+        calculo = userScore.desglose.grupos.find((c) => c.matchId === partido.id);
+      }
+      if (!calculo) {
+        calculo = calcularPuntosPartido(partido, pronostico, real);
+      }
+
+      const bonifClasificado =
+        calculo.bonificaciones?.find((b) => b.tipo === "CLASIFICADO")?.puntos || 0;
+      const bonifPenales =
+        calculo.bonificaciones?.find((b) => b.tipo === "PENALES")?.puntos || 0;
+      const bonifGanadorPenales =
+        calculo.bonificaciones?.find((b) => b.tipo === "GANADOR_PENALES")?.puntos || 0;
+      const bonifCampeon =
+        calculo.bonificaciones?.find((b) => b.tipo === "CAMPEON")?.puntos || 0;
+
+      const equipoA = partido.equipoLocal || partido.placeholderLocal || "TBD";
+      const equipoB = partido.equipoVisitante || partido.placeholderVisitante || "TBD";
+
+      filas.push({
+        Usuario: username,
+        MatchID: partido.id,
+        Fase: partido.fase,
+        EquipoA: equipoA,
+        PronosticoA:
+          pronostico.local !== null && pronostico.local !== "-"
+            ? String(pronostico.local)
+            : "-",
+        PronosticoB:
+          pronostico.visitante !== null && pronostico.visitante !== "-"
+            ? String(pronostico.visitante)
+            : "-",
+        EquipoB: equipoB,
+        ResultadoRealA:
+          real.local !== null && real.local !== "-" ? String(real.local) : "-",
+        ResultadoRealB:
+          real.visitante !== null && real.visitante !== "-"
+            ? String(real.visitante)
+            : "-",
+        PenalesPronosticoA:
+          pronostico.penalesLocal !== null && pronostico.penalesLocal !== "-"
+            ? String(pronostico.penalesLocal)
+            : "-",
+        PenalesPronosticoB:
+          pronostico.penalesVisitante !== null &&
+          pronostico.penalesVisitante !== "-"
+            ? String(pronostico.penalesVisitante)
+            : "-",
+        PenalesRealA:
+          real.penalesLocal !== null && real.penalesLocal !== "-"
+            ? String(real.penalesLocal)
+            : "-",
+        PenalesRealB:
+          real.penalesVisitante !== null && real.penalesVisitante !== "-"
+            ? String(real.penalesVisitante)
+            : "-",
+        PuntosPartido:
+          calculo.puntosFinales -
+          (bonifClasificado + bonifPenales + bonifGanadorPenales + bonifCampeon),
+        BonificacionClasificado: bonifClasificado,
+        BonificacionPenales: bonifPenales,
+        BonificacionGanadorPenales: bonifGanadorPenales,
+        BonificacionCampeon: bonifCampeon,
+        PuntosTotalesFila: calculo.puntosFinales,
+      });
+    });
+
+    // 2. Calcular y agregar fila de bonificaciones de grupos
+    const equiposDelGrupo = [
+      ...new Set(
+        partidosDelGrupo.flatMap(
+          (p) => [p.equipoLocal, p.equipoVisitante].filter(Boolean) as string[]
+        )
+      ),
+    ];
+
+    const { bonificaciones } = calcularBonificacionesGrupos(
+      grupo,
+      partidosDelGrupo,
+      pronosticos,
+      resultadosReales,
+      equiposDelGrupo
+    );
+
+    if (bonificaciones > 0) {
+      filas.push({
+        Usuario: "",
+        MatchID: `BONUS_GRUPO_${grupo}`,
+        Fase: `Bonificación Grupo ${grupo}`,
+        EquipoA: "",
+        PronosticoA: "",
+        PronosticoB: "",
+        EquipoB: "",
+        ResultadoRealA: "",
+        ResultadoRealB: "",
+        PenalesPronosticoA: "",
+        PenalesPronosticoB: "",
+        PenalesRealA: "",
+        PenalesRealB: "",
+        PuntosPartido: bonificaciones,
+        BonificacionClasificado: 0,
+        BonificacionPenales: 0,
+        BonificacionGanadorPenales: 0,
+        BonificacionCampeon: 0,
+        PuntosTotalesFila: bonificaciones,
+      });
+    }
+  });
+
+  // Procesar partidos eliminatorias
+  const eliminatorias = todosLosPartidos.filter((p) => p.fase !== "Grupos");
+  eliminatorias.forEach((partido) => {
     const pronostico = pronosticos[partido.id] || {
       local: "-",
       visitante: "-",
@@ -69,41 +207,27 @@ export const exportarProgresoXLSX = (
       penalesVisitante: null,
     };
 
-    // === PRIORIDAD 1: Usar cálculo existente del desglose del usuario ===
     let calculo: ScoreCalculation | undefined;
-
-    if (userScore.desglose?.grupos) {
-      calculo = userScore.desglose.grupos.find((c) => c.matchId === partido.id);
+    if (userScore.desglose?.eliminatorias) {
+      calculo = userScore.desglose.eliminatorias.find((c) => c.matchId === partido.id);
     }
-    if (!calculo && userScore.desglose?.eliminatorias) {
-      calculo = userScore.desglose.eliminatorias.find(
-        (c) => c.matchId === partido.id
-      );
-    }
-
-    // === PRIORIDAD 2: Fallback - calcular en tiempo real si no existe ===
     if (!calculo) {
       calculo = calcularPuntosPartido(partido, pronostico, real);
     }
 
-    // Extraer bonificaciones
     const bonifClasificado =
-      calculo.bonificaciones?.find((b) => b.tipo === "CLASIFICADO")?.puntos ||
-      0;
+      calculo.bonificaciones?.find((b) => b.tipo === "CLASIFICADO")?.puntos || 0;
     const bonifPenales =
       calculo.bonificaciones?.find((b) => b.tipo === "PENALES")?.puntos || 0;
     const bonifGanadorPenales =
-      calculo.bonificaciones?.find((b) => b.tipo === "GANADOR_PENALES")
-        ?.puntos || 0;
+      calculo.bonificaciones?.find((b) => b.tipo === "GANADOR_PENALES")?.puntos || 0;
     const bonifCampeon =
       calculo.bonificaciones?.find((b) => b.tipo === "CAMPEON")?.puntos || 0;
 
-    // Obtener nombres de equipos
     const equipoA = partido.equipoLocal || partido.placeholderLocal || "TBD";
-    const equipoB =
-      partido.equipoVisitante || partido.placeholderVisitante || "TBD";
+    const equipoB = partido.equipoVisitante || partido.placeholderVisitante || "TBD";
 
-    const fila: ExportRow = {
+    filas.push({
       Usuario: username,
       MatchID: partido.id,
       Fase: partido.fase,
@@ -148,9 +272,7 @@ export const exportarProgresoXLSX = (
       BonificacionGanadorPenales: bonifGanadorPenales,
       BonificacionCampeon: bonifCampeon,
       PuntosTotalesFila: calculo.puntosFinales,
-    };
-
-    filas.push(fila);
+    });
   });
 
   // Agregar fila de totales
@@ -181,8 +303,8 @@ export const exportarProgresoXLSX = (
 
   filas.push({
     Usuario: "",
-    MatchID: 0,
-    Fase: "TOTAL",
+    MatchID: "TOTAL",
+    Fase: "=== TOTAL ===",
     EquipoA: "",
     PronosticoA: "",
     PronosticoB: "",
@@ -207,7 +329,7 @@ export const exportarProgresoXLSX = (
   // Ajustar ancho de columnas
   const colWidths = [
     { wch: 15 }, // Usuario
-    { wch: 8 }, // MatchID
+    { wch: 15 }, // MatchID
     { wch: 15 }, // Fase
     { wch: 12 }, // EquipoA
     { wch: 10 }, // PronosticoA
@@ -317,7 +439,7 @@ export const exportarRankingPDF = (ranking: LeaderboardEntry[]) => {
     startY: 40,
     theme: "striped",
     headStyles: {
-      fillColor: [16, 185, 129], // Emerald-500
+      fillColor: [16, 185, 129],
       textColor: [255, 255, 255],
       fontStyle: "bold",
     },
@@ -332,17 +454,16 @@ export const exportarRankingPDF = (ranking: LeaderboardEntry[]) => {
       4: { cellWidth: 25, halign: "center", fontStyle: "bold" },
     },
     didParseCell: (data) => {
-      // Resaltar top 3
       if (data.section === "body" && data.column.index === 0) {
         const pos = parseInt(data.cell.raw as string);
         if (pos === 1) {
-          data.cell.styles.textColor = [251, 191, 36]; // Amber-400 (Oro)
+          data.cell.styles.textColor = [251, 191, 36];
           data.cell.styles.fontStyle = "bold";
         } else if (pos === 2) {
-          data.cell.styles.textColor = [161, 161, 170]; // Zinc-400 (Plata)
+          data.cell.styles.textColor = [161, 161, 170];
           data.cell.styles.fontStyle = "bold";
         } else if (pos === 3) {
-          data.cell.styles.textColor = [251, 146, 60]; // Amber-600 (Bronce)
+          data.cell.styles.textColor = [251, 146, 60];
           data.cell.styles.fontStyle = "bold";
         }
       }
