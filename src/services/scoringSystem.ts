@@ -287,7 +287,7 @@ export const calcularPuntosPartido = (
 // BONIFICACIONES DE GRUPOS
 // ============================================================================
 
-const calcularBonificacionesGrupos = (
+export const calcularBonificacionesGrupos = (
   grupo: string,
   partidosDelGrupo: Partido[],
   pronosticos: Record<number, Pronostico>,
