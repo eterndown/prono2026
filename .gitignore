@@ -1,25 +1,69 @@
+```
 # Dependencies
 node_modules/
 
-# Next.js
-.next/
-out/
-dist/
-build/
-
-# CodeSandbox
-.codesandbox/
+# Logs and temp files
+*.log
+*.tmp
 
 # Environment
 .env
 .env.local
-.env.*.local
+*.env.*
 
-# Logs
-*.log
-npm-debug.log*
-pnpm-debug.log*
+# Editors
+.vscode/
+.idea/
 
-# OS
-.DS_Store
-Thumbs.db
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build outputs
+dist/
+build/
+*.o
+*.obj
+*.out
+
+# Compression files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Gradle
+.gradle/
+target/
+
+# MyPy
+.mypy_cache/
+
+# Pytest
+.pytest_cache/
+```
