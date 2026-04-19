@@ -28,9 +28,9 @@ import {
   calcularPosiciones,
   obtenerMejoresTerceros,
   resolverLlaves,
-  isValidScore,
   simularPenales,
 } from "./services/fifaLogic";
+import { isValidScore } from "../lib/utils";
 import { api } from "./services/api";
 import { MatchCard } from "./components/MatchCard";
 import DetailedStandingsView from "./components/DetailedStandingsView";

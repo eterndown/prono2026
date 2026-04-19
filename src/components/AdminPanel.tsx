@@ -14,10 +14,10 @@ import {
   resolverLlaves,
   calcularPosiciones,
   obtenerMejoresTerceros,
-  isValidScore,
   simularPenales,
   checkPensValidity,
 } from "../services/fifaLogic";
+import { isValidScore } from "../../lib/utils";
 import { exportarProgresoXLSX } from "../services/exportSystem";
 import {
   Users,
