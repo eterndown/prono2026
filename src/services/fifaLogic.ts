@@ -1,13 +1,5 @@
 import { Clasificacion, Partido, LetraGrupo, Pronostico, Fase } from "../types";
-
-/**
- * Valida si un valor es un puntaje válido (número no vacío)
- */
-export const isValidScore = (v: any): boolean => {
-  if (v === null || v === undefined || v === "" || v === "-") return false;
-  const n = Number(v);
-  return !isNaN(n) && isFinite(n);
-};
+import { isValidScore } from "../lib/utils";
 
 /**
  * Calcula la tabla de posiciones de un grupo específico

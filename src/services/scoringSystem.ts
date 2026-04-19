@@ -12,6 +12,7 @@ import {
   UserScore,
   LeaderboardEntry,
 } from "../types";
+import { isValidScore } from "../lib/utils";
 
 // ============================================================================
 // CONFIGURACIÓN BASE
@@ -27,12 +28,18 @@ export const PUNTOS_BASE: Record<Fase, Record<TipoAcierto, number>> = {
   Final: { EXACTO: 7, GANADOR: 7, EMPATE: 6, INVERTIDO: 6 },
 };
 
+/**
+ * Factor de cercanía para reducir puntos según la diferencia de goles
+ * Nota: Diferencias >= 4 usan el mismo factor (0.2) intencionalmente,
+ * para evitar que puntuaciones con errores muy grandes sean negativas o insignificantes.
+ * Esto establece un límite inferior razonable sin castigar excesivamente.
+ */
 export const FACTOR_CERCANIA: Record<number, number> = {
-  0: 1.0,
-  1: 0.8,
-  2: 0.6,
-  3: 0.4,
-  4: 0.2,
+  0: 1.0,  // Acierto exacto
+  1: 0.8,  // Diferencia de 1 gol
+  2: 0.6,  // Diferencia de 2 goles
+  3: 0.4,  // Diferencia de 3 goles
+  4: 0.2,  // Diferencia de 4+ goles (mismo factor para diferencias mayores)
 };
 
 export const PISO_MINIMO: Record<"GANADOR" | "EMPATE", number> = {
@@ -44,12 +51,7 @@ export const PISO_MINIMO: Record<"GANADOR" | "EMPATE", number> = {
 // FUNCIONES AUXILIARES
 // ============================================================================
 
-export const isValidScore = (val: any): boolean => {
-  if (val === null || val === undefined || val === "" || val === "-")
-    return false;
-  const n = Number(val);
-  return !isNaN(n) && isFinite(n) && n >= 0;
-};
+// isValidScore ahora se importa desde ../lib/utils para evitar duplicación
 
 export const calcularDiferencia = (
   glProno: number,
@@ -273,7 +275,7 @@ export const calcularPuntosPartido = (
     factor,
     puntosBase,
     puntosCalculados,
-    puntosRedondeados: Math.round(puntosCalculados),
+    puntosRedondeados: puntosRedondeados,
     pisoAplicado:
       hayPiso !== null && Math.round(puntosCalculados) < PISO_MINIMO[hayPiso],
     puntosFinales: puntosRedondeados,

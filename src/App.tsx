@@ -924,7 +924,7 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                       <h2 className="text-4xl font-black uppercase italic tracking-tighter text-white">
-                      Cup 2026 Vivo Me ves? 📡
+                      Cup 2026 Vivo 📡
                       </h2>
                     </div>
                     <p className="text-zinc-500 text-[10px] font-bold uppercase tracking-[0.4em] pl-5">
