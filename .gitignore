@@ -66,4 +66,5 @@ target/
 
 # Pytest
 .pytest_cache/
-```
+```.next/
+.next/

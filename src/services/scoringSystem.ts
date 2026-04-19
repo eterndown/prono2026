@@ -273,9 +273,9 @@ export const calcularPuntosPartido = (
     factor,
     puntosBase,
     puntosCalculados,
-    puntosRedondeados: Math.round(puntosCalculados),
-    pisoAplicado:
-      hayPiso !== null && Math.round(puntosCalculados) < PISO_MINIMO[hayPiso],
+    // CORRECCIÓN: Usar la variable ya ajustada (puntosRedondeados) en lugar de recalcular
+    puntosRedondeados: puntosRedondeados, 
+    pisoAplicado: hayPiso !== null && puntosRedondeados === PISO_MINIMO[hayPiso],
     puntosFinales: puntosRedondeados,
     bonificaciones,
     detalle: `${partido.equipoLocal} ${glProno}-${gvProno} ${partido.equipoVisitante} → Real: ${glReal}-${gvReal}`,
