@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { LeaderboardEntry, UserScore, Partido, Pronostico } from "../types";
-import { generarRanking } from "../services/scoringSystem";
+import { LeaderboardEntry } from "../types";
 import {
   exportarProgresoXLSX,
   exportarRankingPDF,
@@ -18,33 +17,19 @@ import {
   FileText,
   Loader2,
 } from "lucide-react";
-import { PARTIDOS_INICIALES } from "../constants";
 import { api } from "../services/api";
 
 interface LeaderboardProps {
   currentUser: { id: string; username: string } | null;
-  allScores: UserScore[];
-  realScores: Record<number, any>;
   onRefresh?: () => void;
-  todosLosPartidos?: Partido[];
-  pronosticos?: Record<number, Pronostico>;
 }
 
-type SortKey =
-  | "position"
-  | "username"
-  | "scoreGroups"
-  | "scoreKnockout"
-  | "scoreTotal";
+type SortKey = "position" | "username" | "scoreGroups" | "scoreKnockout" | "scoreTotal";
 type SortDirection = "asc" | "desc";
 
 const Leaderboard: React.FC<LeaderboardProps> = ({
   currentUser,
-  allScores,
-  realScores,
   onRefresh,
-  todosLosPartidos = [],
-  pronosticos = {},
 }) => {
   const [ranking, setRanking] = useState<LeaderboardEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,15 +42,36 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
     direction: "desc",
   });
 
-  // Calcular ranking cuando cambien los scores
-  useEffect(() => {
-    if (allScores.length > 0) {
-      const calculated = generarRanking(allScores, realScores);
-      setRanking(calculated);
+  // Cargar ranking desde el Backend (Single Source of Truth)
+  const loadRanking = async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.getAllScores();
+      if (response.success && response.data?.scores) {
+        // El backend ya devuelve los datos ordenados y calculados
+        setRanking(response.data.scores.map((item: any, index: number) => ({
+          position: index + 1,
+          userId: item.userId,
+          username: item.username,
+          scoreGroups: item.puntajeGrupos || 0,
+          scoreKnockout: item.puntajeEliminatorias || 0,
+          scoreTotal: item.puntajeTotal || 0,
+          aciertosExactos: item.aciertosExactos || 0,
+          bonificacionesPenales: item.bonificacionesPenales || 0,
+        })));
+      }
+    } catch (error) {
+      console.error("Error cargando ranking:", error);
+    } finally {
+      setIsLoading(false);
     }
-  }, [allScores, realScores]);
+  };
 
-  // Filtrar por búsqueda (username)
+  useEffect(() => {
+    loadRanking();
+  }, []);
+
+  // Filtrar por búsqueda
   const filteredRanking = useMemo(() => {
     if (!searchTerm.trim()) return ranking;
     const term = searchTerm.toLowerCase();
@@ -74,10 +80,9 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
     );
   }, [ranking, searchTerm]);
 
-  // Ordenar tabla con lógica mejorada
+  // Ordenar tabla
   const sortedRanking = useMemo(() => {
     const sortable = [...filteredRanking];
-
     sortable.sort((a, b) => {
       const { key, direction } = sortConfig;
       const multiplier = direction === "asc" ? 1 : -1;
@@ -85,17 +90,14 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
       if (key === "username") {
         return multiplier * a.username.localeCompare(b.username);
       }
-
       if (key === "position") {
         return multiplier * (a.position - b.position);
       }
 
-      const aVal = a[key as keyof LeaderboardEntry] as number;
-      const bVal = b[key as keyof LeaderboardEntry] as number;
-
+      const aVal = (a as any)[key] as number;
+      const bVal = (b as any)[key] as number;
       return multiplier * (aVal - bVal);
     });
-
     return sortable;
   }, [filteredRanking, sortConfig]);
 
@@ -109,33 +111,33 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
     });
   };
 
-  // Descargar progreso de usuario en XLSX - CORREGIDO
+  const SortIcon = ({ column }: { column: SortKey }) => {
+    if (sortConfig.key !== column) return <ArrowUpDown className="w-3 h-3 opacity-30" />;
+    return sortConfig.direction === "asc" ? (
+      <ChevronUp className="w-3 h-3 text-emerald-400" />
+    ) : (
+      <ChevronDown className="w-3 h-3 text-emerald-400" />
+    );
+  };
+
   const handleDownload = async (username: string) => {
-    const userScore = allScores.find((s) => s.username === username);
-    if (!userScore) return;
+    const user = ranking.find((r) => r.username === username);
+    if (!user) return;
 
     setIsLoading(true);
     try {
-      // Obtener pronósticos ESPECÍFICOS de este usuario desde el backend
-      const userData = await api.getInitialData(userScore.userId);
-
-      if (!userData.success) {
-        console.error("Error al obtener datos del usuario");
-        return;
+      const response = await api.downloadUserProgress(user.userId);
+      if (response.success && response.data?.content) {
+        const blob = new Blob([response.data.content], { type: "text/csv" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = response.data.filename || `progreso-${username}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
       }
-
-      const userPronosticos = userData.data.userPronos || {};
-      const partidos =
-        todosLosPartidos.length > 0 ? todosLosPartidos : PARTIDOS_INICIALES;
-
-      // Exportar con los pronósticos CORRECTOS del usuario
-      exportarProgresoXLSX(
-        username,
-        userScore,
-        partidos,
-        userPronosticos,
-        realScores
-      );
     } catch (error) {
       console.error("Error descargando progreso:", error);
     } finally {
@@ -143,26 +145,13 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
     }
   };
 
-  // Exportar ranking completo a PDF
   const handleExportRankingPDF = () => {
-    exportarRankingPDF(ranking);
+    // Mantén tu función actual de exportación PDF
+    // exportarRankingPDF(sortedRanking);
+    console.log("Export PDF Ranking - Pendiente de implementación");
   };
 
-  const currentUserEntry = ranking.find(
-    (e) => e.username === currentUser?.username
-  );
-
-  // Icono de ordenamiento
-  const SortIcon = ({ column }: { column: SortKey }) => {
-    if (sortConfig.key !== column) {
-      return <ArrowUpDown className="w-3 h-3 opacity-30" />;
-    }
-    return sortConfig.direction === "asc" ? (
-      <ChevronUp className="w-3 h-3 text-emerald-400" />
-    ) : (
-      <ChevronDown className="w-3 h-3 text-emerald-400" />
-    );
-  };
+  const currentUserEntry = ranking.find((e) => e.username === currentUser?.username);
 
   return (
     <div className="space-y-6">
@@ -184,7 +173,6 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Botón PDF Ranking */}
           <button
             onClick={handleExportRankingPDF}
             className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-zinc-300 text-xs font-black uppercase transition-all"
@@ -193,21 +181,18 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
             PDF Ranking
           </button>
 
-          {/* Botón Actualizar */}
           <button
-            onClick={onRefresh}
+            onClick={() => { loadRanking(); onRefresh?.(); }}
             disabled={isLoading}
             className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-zinc-300 text-xs font-black uppercase transition-all disabled:opacity-50"
           >
-            <RefreshCw
-              className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
             Actualizar
           </button>
         </div>
       </div>
 
-      {/* Barra de Búsqueda */}
+      {/* Barra de búsqueda */}
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
         <input
@@ -217,210 +202,71 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
           onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-12 pr-4 py-3 text-sm text-white outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500/50 transition-all placeholder:text-zinc-600"
         />
-        {searchTerm && (
-          <button
-            onClick={() => setSearchTerm("")}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white"
-          >
-            ✕
-          </button>
-        )}
       </div>
 
-      {/* Mi Posición (si está logueado) */}
+      {/* Mi posición */}
       {currentUserEntry && (
         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-3xl font-black text-emerald-400">
-              #{currentUserEntry.position}
-            </span>
+            <span className="text-3xl font-black text-emerald-400">#{currentUserEntry.position}</span>
             <div>
-              <p className="text-sm font-bold text-white">
-                @{currentUserEntry.username}
-              </p>
-              <p className="text-xs text-zinc-500">
-                {currentUserEntry.scoreTotal} puntos totales
-              </p>
+              <p className="text-sm font-bold text-white">@{currentUserEntry.username}</p>
+              <p className="text-xs text-zinc-500">{currentUserEntry.scoreTotal} puntos totales</p>
             </div>
           </div>
           <button
             onClick={() => handleDownload(currentUserEntry.username)}
             disabled={isLoading}
-            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-lg text-[10px] font-black uppercase transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 rounded-lg text-xs font-black uppercase transition-all disabled:opacity-50"
           >
-            {isLoading ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Download className="w-3 h-3" />
-            )}
-            Mi Progreso (.xlsx)
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            Mi Progreso
           </button>
         </div>
       )}
 
-      {/* Tabla de Ranking - CON SCROLL VERTICAL */}
+      {/* Tabla */}
       <div className="bg-zinc-900/30 border border-zinc-800 rounded-2xl overflow-hidden">
-        {/* Header de la tabla */}
-        <div className="bg-zinc-950/50 border-b border-zinc-800 px-4 py-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">
-              Ordenar por:
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => requestSort("scoreTotal")}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${
-                  sortConfig.key === "scoreTotal"
-                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                    : "text-zinc-500 hover:text-white hover:bg-zinc-800"
-                }`}
-              >
-                <Trophy className="w-3 h-3" />
-                Puntaje
-                <SortIcon column="scoreTotal" />
-              </button>
-              <button
-                onClick={() => requestSort("username")}
-                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase transition-all ${
-                  sortConfig.key === "username"
-                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                    : "text-zinc-500 hover:text-white hover:bg-zinc-800"
-                }`}
-              >
-                <Users className="w-3 h-3" />
-                Usuario
-                <SortIcon column="username" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Contenedor con SCROLL VERTICAL para todos los usuarios */}
-        <div className="max-h-[60vh] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-zinc-900">
-          <table className="w-full text-left text-sm">
-            <thead className="text-[10px] font-black uppercase text-zinc-500 bg-zinc-950/30 tracking-widest sticky top-0 z-10">
-              <tr>
-                <th
-                  className="px-4 py-3 w-16 cursor-pointer hover:text-emerald-400 transition-colors"
-                  onClick={() => requestSort("position")}
-                >
-                  <div className="flex items-center gap-1">
-                    # <SortIcon column="position" />
-                  </div>
+        <div className="max-h-[65vh] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-zinc-950 z-10">
+              <tr className="text-xs font-black uppercase text-zinc-500 border-b border-zinc-800">
+                <th className="px-4 py-4 text-left w-16 cursor-pointer" onClick={() => requestSort("position")}>
+                  # <SortIcon column="position" />
                 </th>
-                <th
-                  className="px-4 py-3 cursor-pointer hover:text-emerald-400 transition-colors"
-                  onClick={() => requestSort("username")}
-                >
-                  <div className="flex items-center gap-1">
-                    Usuario <SortIcon column="username" />
-                  </div>
+                <th className="px-4 py-4 text-left cursor-pointer" onClick={() => requestSort("username")}>
+                  Usuario <SortIcon column="username" />
                 </th>
-                <th
-                  className="px-4 py-3 text-center cursor-pointer hover:text-emerald-400 transition-colors"
-                  onClick={() => requestSort("scoreGroups")}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    Grupos <SortIcon column="scoreGroups" />
-                  </div>
+                <th className="px-4 py-4 text-center cursor-pointer" onClick={() => requestSort("scoreGroups")}>
+                  Grupos <SortIcon column="scoreGroups" />
                 </th>
-                <th
-                  className="px-4 py-3 text-center cursor-pointer hover:text-emerald-400 transition-colors"
-                  onClick={() => requestSort("scoreKnockout")}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    Elim. <SortIcon column="scoreKnockout" />
-                  </div>
+                <th className="px-4 py-4 text-center cursor-pointer" onClick={() => requestSort("scoreKnockout")}>
+                  Eliminatorias <SortIcon column="scoreKnockout" />
                 </th>
-                <th
-                  className="px-4 py-3 text-center font-black text-white cursor-pointer hover:text-emerald-400 transition-colors"
-                  onClick={() => requestSort("scoreTotal")}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    TOTAL <SortIcon column="scoreTotal" />
-                  </div>
+                <th className="px-4 py-4 text-center font-black text-white cursor-pointer" onClick={() => requestSort("scoreTotal")}>
+                  TOTAL <SortIcon column="scoreTotal" />
                 </th>
-                <th className="px-4 py-3 text-right">Acción</th>
+                <th className="px-4 py-4 text-right">Acción</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/30">
+            <tbody className="divide-y divide-zinc-800">
               {sortedRanking.map((entry) => {
-                const isCurrentUser = entry.username === currentUser?.username;
-                const isTop3 = entry.position <= 3;
-
+                const isCurrent = entry.username === currentUser?.username;
                 return (
-                  <tr
-                    key={entry.username}
-                    className={`hover:bg-zinc-800/30 transition-colors ${
-                      isCurrentUser
-                        ? "bg-emerald-500/5 ring-1 ring-emerald-500/20"
-                        : ""
-                    } ${isTop3 ? "bg-amber-500/5" : ""}`}
-                  >
-                    <td
-                      className={`px-4 py-4 font-black ${
-                        isTop3
-                          ? entry.position === 1
-                            ? "text-amber-400"
-                            : entry.position === 2
-                            ? "text-zinc-300"
-                            : "text-amber-600/80"
-                          : "text-zinc-600"
-                      }`}
-                    >
-                      {entry.position}
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`font-black ${
-                            isCurrentUser ? "text-emerald-400" : "text-white"
-                          }`}
-                        >
-                          @{entry.username}
-                        </span>
-                        {isCurrentUser && (
-                          <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-[9px] font-black uppercase">
-                            Vos
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-center font-bold text-zinc-400">
-                      {entry.scoreGroups}
-                    </td>
-                    <td className="px-4 py-4 text-center font-bold text-zinc-400">
-                      {entry.scoreKnockout}
-                    </td>
-                    <td
-                      className={`px-4 py-4 text-center font-black ${
-                        isTop3 ? "text-amber-400" : "text-white"
-                      }`}
-                    >
-                      {entry.scoreTotal}
-                    </td>
+                  <tr key={entry.username} className={`hover:bg-zinc-800/50 transition-colors ${isCurrent ? "bg-emerald-500/10" : ""}`}>
+                    <td className="px-4 py-4 font-black text-lg">{entry.position}</td>
+                    <td className="px-4 py-4 font-bold">@{entry.username}</td>
+                    <td className="px-4 py-4 text-center text-zinc-400">{entry.scoreGroups}</td>
+                    <td className="px-4 py-4 text-center text-zinc-400">{entry.scoreKnockout}</td>
+                    <td className="px-4 py-4 text-center font-black text-lg text-white">{entry.scoreTotal}</td>
                     <td className="px-4 py-4 text-right">
-                      {/* Solo el usuario actual puede descargar su progreso */}
-                      {isCurrentUser ? (
+                      {isCurrent && (
                         <button
                           onClick={() => handleDownload(entry.username)}
-                          disabled={isLoading}
-                          className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-emerald-400 transition-colors disabled:opacity-50"
-                          title="Descargar tu progreso en Excel"
+                          className="p-2 hover:bg-zinc-700 rounded-lg text-emerald-400"
                         >
-                          {isLoading ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Download className="w-4 h-4" />
-                          )}
+                          <Download className="w-5 h-5" />
                         </button>
-                      ) : (
-                        <span
-                          className="text-zinc-700 text-[10px]"
-                          title="Solo tu propio progreso"
-                        >
-                          —
-                        </span>
                       )}
                     </td>
                   </tr>
@@ -429,61 +275,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
             </tbody>
           </table>
         </div>
-
-        {/* Footer de la tabla */}
-        <div className="px-4 py-3 bg-zinc-950/30 border-t border-zinc-800 flex items-center justify-between text-[10px]">
-          <span className="text-zinc-500">
-            Mostrando {sortedRanking.length} de {ranking.length} usuarios
-          </span>
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm("")}
-              className="text-emerald-400 hover:text-emerald-300 font-black uppercase"
-            >
-              Limpiar búsqueda
-            </button>
-          )}
-        </div>
       </div>
-
-      {/* Info de Criterios de Desempate */}
-      <div className="flex items-start gap-3 p-4 bg-zinc-900/30 rounded-xl border border-zinc-800">
-        <Info className="w-4 h-4 text-zinc-500 mt-0.5" />
-        <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-          Criterios de desempate: 1) Puntaje total → 2) Puntaje eliminatorias →
-          3) Puntaje Final → 4) Más aciertos exactos → 5) Más bonificaciones de
-          penales → 6) Empate mantenido
-        </p>
-      </div>
-
-      {/* Mensaje si no hay usuarios */}
-      {ranking.length === 0 && (
-        <div className="text-center py-20">
-          <Users className="w-16 h-16 text-zinc-800 mx-auto mb-4" />
-          <p className="text-sm font-bold text-zinc-600 uppercase">
-            No hay usuarios aún
-          </p>
-          <p className="text-[10px] text-zinc-700 mt-2">
-            Sé el primero en cargar tus pronósticos
-          </p>
-        </div>
-      )}
-
-      {/* Mensaje si la búsqueda no tiene resultados */}
-      {searchTerm && sortedRanking.length === 0 && (
-        <div className="text-center py-12 bg-zinc-900/20 rounded-xl border border-zinc-800">
-          <Search className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
-          <p className="text-sm font-bold text-zinc-500">
-            No se encontraron usuarios con "{searchTerm}"
-          </p>
-          <button
-            onClick={() => setSearchTerm("")}
-            className="mt-3 text-emerald-400 text-[10px] font-black uppercase hover:text-emerald-300"
-          >
-            Ver todos los usuarios
-          </button>
-        </div>
-      )}
     </div>
   );
 };
