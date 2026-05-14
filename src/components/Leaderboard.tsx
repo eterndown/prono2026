@@ -42,7 +42,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
     direction: "desc",
   });
 
-  // Cargar ranking desde Backend (Single Source of Truth)
+  // Cargar ranking desde Backend
   const loadRanking = async () => {
     setIsLoading(true);
     try {
@@ -83,7 +83,6 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
     sortable.sort((a, b) => {
       const { key, direction } = sortConfig;
       const multiplier = direction === "asc" ? 1 : -1;
-
       if (key === "username") return multiplier * a.username.localeCompare(b.username);
       if (key === "position") return multiplier * (a.position - b.position);
 
@@ -112,15 +111,32 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
     );
   };
 
+  // DESCARGA CORREGIDA - XLSX
   const handleDownload = async (username: string) => {
-    const user = ranking.find((r) => r.username === username);
-    if (!user || !currentUser || user.username !== currentUser.username) return;
+    if (!currentUser || username !== currentUser.username) return;
 
     setIsLoading(true);
     try {
-      await exportarProgresoXLSX(username); // Tu función existente debería manejar la llamada interna a downloadUserProgress
+      // Llamada directa al backend para obtener el archivo
+      const response = await api.downloadUserProgress(currentUser.id);
+      
+      if (response.success && response.data?.content) {
+        // Crear blob y descargar
+        const blob = new Blob([response.data.content], { type: "text/csv" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = response.data.filename || `prono2026-${username}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      } else {
+        alert("Error al descargar el archivo: " + (response.message || "Desconocido"));
+      }
     } catch (error) {
-      console.error("Error descargando progreso:", error);
+      console.error("Error en descarga:", error);
+      alert("Error al descargar el progreso");
     } finally {
       setIsLoading(false);
     }
@@ -167,7 +183,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
         </div>
       </div>
 
-      {/* Barra de búsqueda */}
+      {/* Búsqueda */}
       <div className="relative">
         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
         <input
@@ -179,7 +195,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
         />
       </div>
 
-      {/* Mi posición destacada */}
+      {/* Mi Posición */}
       {currentUserEntry && (
         <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -200,27 +216,17 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
         </div>
       )}
 
-      {/* Tabla completa de Ranking */}
+      {/* Tabla de Ranking */}
       <div className="bg-zinc-900/30 border border-zinc-800 rounded-2xl overflow-hidden">
         <div className="max-h-[65vh] overflow-y-auto">
           <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-zinc-950 z-10 border-b border-zinc-800">
-              <tr className="text-xs font-black uppercase text-zinc-500">
-                <th className="px-4 py-4 text-left w-16 cursor-pointer" onClick={() => requestSort("position")}>
-                  # <SortIcon column="position" />
-                </th>
-                <th className="px-4 py-4 text-left cursor-pointer" onClick={() => requestSort("username")}>
-                  Usuario <SortIcon column="username" />
-                </th>
-                <th className="px-4 py-4 text-center cursor-pointer" onClick={() => requestSort("scoreGroups")}>
-                  Grupos <SortIcon column="scoreGroups" />
-                </th>
-                <th className="px-4 py-4 text-center cursor-pointer" onClick={() => requestSort("scoreKnockout")}>
-                  Eliminatorias <SortIcon column="scoreKnockout" />
-                </th>
-                <th className="px-4 py-4 text-center font-black text-white cursor-pointer" onClick={() => requestSort("scoreTotal")}>
-                  TOTAL <SortIcon column="scoreTotal" />
-                </th>
+            <thead className="sticky top-0 bg-zinc-950 z-10">
+              <tr className="text-xs font-black uppercase text-zinc-500 border-b border-zinc-800">
+                <th className="px-4 py-4 text-left w-16 cursor-pointer" onClick={() => requestSort("position")}>#</th>
+                <th className="px-4 py-4 text-left cursor-pointer" onClick={() => requestSort("username")}>Usuario</th>
+                <th className="px-4 py-4 text-center cursor-pointer" onClick={() => requestSort("scoreGroups")}>Grupos</th>
+                <th className="px-4 py-4 text-center cursor-pointer" onClick={() => requestSort("scoreKnockout")}>Eliminatorias</th>
+                <th className="px-4 py-4 text-center font-black text-white cursor-pointer" onClick={() => requestSort("scoreTotal")}>TOTAL</th>
                 <th className="px-4 py-4 text-right w-20">Acción</th>
               </tr>
             </thead>
@@ -228,19 +234,18 @@ const Leaderboard: React.FC<LeaderboardProps> = ({
               {sortedRanking.map((entry) => {
                 const isCurrent = entry.username === currentUser?.username;
                 return (
-                  <tr key={entry.username} className={`hover:bg-zinc-800/50 transition-colors ${isCurrent ? "bg-emerald-500/10" : ""}`}>
+                  <tr key={entry.username} className={`hover:bg-zinc-800/50 ${isCurrent ? "bg-emerald-500/10" : ""}`}>
                     <td className="px-4 py-4 font-black">{entry.position}</td>
                     <td className="px-4 py-4 font-bold">@{entry.username}</td>
                     <td className="px-4 py-4 text-center text-zinc-400">{entry.scoreGroups}</td>
                     <td className="px-4 py-4 text-center text-zinc-400">{entry.scoreKnockout}</td>
-                    <td className="px-4 py-4 text-center font-black text-lg">{entry.scoreTotal}</td>
+                    <td className="px-4 py-4 text-center font-black text-lg text-white">{entry.scoreTotal}</td>
                     <td className="px-4 py-4 text-right">
                       {isCurrent && (
                         <button
                           onClick={() => handleDownload(entry.username)}
                           disabled={isLoading}
                           className="p-2 hover:bg-zinc-700 rounded-lg text-emerald-400"
-                          title="Descargar mi progreso detallado"
                         >
                           <Download className="w-5 h-5" />
                         </button>
